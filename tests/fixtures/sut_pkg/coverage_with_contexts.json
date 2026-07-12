@@ -1,0 +1,42 @@
+{
+  "meta": {
+    "format": 3,
+    "version": "7.0.0",
+    "timestamp": "2026-07-11T00:00:00",
+    "branch_coverage": true,
+    "show_contexts": true
+  },
+  "files": {
+    "prod.py": {
+      "executed_lines": [5, 9, 13],
+      "summary": {
+        "covered_lines": 3,
+        "num_statements": 3,
+        "percent_covered": 100.0,
+        "covered_branches": 0,
+        "num_branches": 0,
+        "missing_lines": 0
+      },
+      "contexts": {
+        "5": [
+          "test_prod.py::test_add_none|run",
+          "test_prod.py::test_add_weak|run"
+        ],
+        "9": [
+          "test_prod.py::test_multiply_strong|run"
+        ],
+        "13": [
+          "test_prod.py::test_add_none|run"
+        ]
+      }
+    }
+  },
+  "totals": {
+    "covered_lines": 3,
+    "num_statements": 3,
+    "percent_covered": 100.0,
+    "covered_branches": 0,
+    "num_branches": 0,
+    "missing_lines": 0
+  }
+}

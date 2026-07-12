@@ -249,6 +249,7 @@ class TestCaseMetrics:
     severity: Severity = "info"
     markers: list[str] = field(default_factory=list)
     exempt: bool = False
+    calls_production: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -262,6 +263,10 @@ class TestModuleRollup:
     frac_oracle_strong: float = 0.0
     mean_assertion_density: float = 0.0
     high_severity_count: int = 0
+    coverage_line: float | None = None
+    coverage_branch: float | None = None
+    weak_oracle_covered_line_count: int = 0
+    unchecked_covered_callable_count: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -296,6 +301,12 @@ class TestOverallReport:
     oracle_histogram: dict[str, int] = field(
         default_factory=lambda: {"none": 0, "weak": 0, "strong": 0}
     )
+    coverage_line: float | None = None
+    coverage_branch: float | None = None
+    unchecked_covered_callables: list[str] = field(default_factory=list)
+    weak_oracle_covered_lines: list[dict[str, Any]] = field(default_factory=list)
+    unchecked_covered_callable_count: int = 0
+    weak_oracle_covered_line_count: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -316,6 +327,7 @@ class TestMetricsReport:
             "weak_oracle": "low",
             "swallowed_error": "high",
             "empty_body": "high",
+            "weak_oracle_covered_line": "low",
         }
     )
     overall: TestOverallReport = field(default_factory=TestOverallReport)

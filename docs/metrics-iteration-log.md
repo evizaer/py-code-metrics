@@ -9,6 +9,7 @@ Target corpus: `src/py_code_metrics` (the tool analyzing itself).
 | 1 | pre-`1446e9b` refactors (CS1–CS2) | `/tmp/pcm-baseline.json` → `/tmp/pcm-after2.json` | Flatten hotspots; roll back unpaid F=1 |
 | 2 | `add5082` (P0 tests) + `1446e9b` (CS3) | `/tmp/pcm-self-before.json` → `/tmp/pcm-iter-final.json` | Oracle cleanup; paid extracts; stop rule |
 | 3 | `5ee2701` (dashboard hardening) | `/tmp/pcm-round3-before.json` → `/tmp/pcm-round3-after.json` | Implements Round 2 product feedback |
+| 4 | P1 SUT + coverage ingest | `/tmp/pcm-p1-before.json` → `/tmp/pcm-p1-after.json` | `test_sut` / `test_coverage` / `--delta`; gate PASS |
 
 ### Feedback tracker (Round 2 → status)
 
@@ -311,3 +312,45 @@ Fails on rising `n_unpaid_hotspots`, or rising `max_v_poly` when the new max sym
 ### Round 3 verdict
 
 Product gaps from Round 2 are closed without regressing the R2 complexity plateau (`max_v_poly=19`). The suite now **points agents at unpaid debt** and **stops nagging visitors / paid cores**. Global `sum_S` worsened slightly from new dashboard helpers (accepted feature cost); use `helpers_cores` for ETSPA gates going forward. Next coding fork: P1 test-quality (coverage ingest) under this board — with a before/after self-analysis note in this log.
+
+---
+
+## Round 4 — P1 production linkage + coverage ingest
+
+**Intent.** Ship test-quality P1: resolve test calls into production symbols, ingest `coverage.json` (floors + weak-oracle-covered lines when contexts present), optional `--delta` git path filter — without raising unpaid hotspots.
+
+**Files:** `metrics/test_sut.py`, `metrics/test_coverage.py`, `metrics/test_delta.py`, `analyze_tests.py`, `cli.py`, `model.py`, fixtures under `tests/fixtures/sut_pkg/`.
+
+**Snapshots:** `/tmp/pcm-p1-before.json` → `/tmp/pcm-p1-after.json`. Gate **PASS** (`n_unpaid_hotspots` 11→10; `max_v_poly` held at 19).
+
+### What shipped
+
+| Piece | Behavior |
+| --- | --- |
+| SUT linkage | `calls_production` via `resolve_call` on non-test callables |
+| Coverage floors | `--coverage FILE` → `coverage_line` / `coverage_branch` |
+| Contexts | `weak_oracle_covered_lines` when JSON has per-line contexts |
+| Static fallback | `unchecked_covered_callables` (covered body ∩ no strong-oracle caller) |
+| Delta | `--delta` filters modules/findings to git-changed `*.py` |
+
+### Overall deltas (Round 4)
+
+| Metric | Before (R3) | After R4 | Δ |
+| --- | ---: | ---: | ---: |
+| `max_v_poly` | 19 | **19** | 0 |
+| `max_nesting` | 4 | 4 | 0 |
+| `mean_cyclomatic` | 4.235 | 4.230 | ≈0 |
+| `mean_cognitive` | 4.524 | 4.414 | −0.11 |
+| `n_unpaid_hotspots` | 11 | **10** | −1 |
+| `n_unpaid_v_poly_gt_15` | 2 | **1** | −1 |
+| `helpers_cores.sum_S` | +335 | **+438** | +103 |
+| `helpers_cores.frac_fan_in≤1` | 0.475 | 0.524 | +0.05 (new leaf helpers) |
+| callables | 187 | 222 | +35 (feature modules) |
+
+### Notable board effect
+
+`resolve.resolve_call` left the unpaid hotspot list: `test_sut.resolve_production_calls` raises its fan-in so the design-bound resolver is **paid**. First coverage draft briefly added two unpaid hotspots (`_weak_oracle_covered_lines`, `_unchecked_covered_callables`); flattened into named pipeline steps (nest/cog under gates) before shipping.
+
+### Round 4 verdict
+
+P1 lands under the complementary board without regressing unpaid hotspot count or `max_v_poly`. Prefer project-root `--tests` so SUT resolve sees production modules; contexts need `coverage json --show-contexts`. Next: P2 mutation ingest.

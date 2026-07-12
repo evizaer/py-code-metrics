@@ -4,7 +4,7 @@
 
 **Verdict.** Line/branch coverage measures **execution**, not **verification**. A complementary suite is required: (1) coverage adequacy as a floor, (2) static oracle/smell signals as a fast fake-test detector, (3) mutation (or mutation-correlated proxies) as the gold standard for fault-detection power. Single-metric optimization is unsafe under Goodhart pressure—agents optimizing “coverage %” or “tests exist” correctly emit the cheapest green artifacts. Pair coverage with oracle strength; pair oracle counts with mutation or state-field checks so strong-looking assertions that check the wrong thing still fail.
 
-**Status (2026-07).** P0 static fake-test detection is implemented (`metrics/test_oracles.py`, `metrics/test_smells.py`, `analyze_tests.py`). Two rounds of metrics-guided self-iteration on `src/py_code_metrics` (documented in [`docs/metrics-iteration-log.md`](docs/metrics-iteration-log.md)) validated the complementary production suite. **Round 3** closed the dashboard/gate gaps (F1–F6 / §11): unpaid hotspots, role-split boards, visitor exemption, over-threshold counts, `reduction_like`, and `scripts/compare_self_metrics.py`. Next coding fork: **P1** coverage ingest + SUT linkage under that board.
+**Status (2026-07).** P0 static fake-test detection is implemented (`metrics/test_oracles.py`, `metrics/test_smells.py`, `analyze_tests.py`). **P1** production linkage + coverage ingest is implemented (`metrics/test_sut.py`, `metrics/test_coverage.py`, `metrics/test_delta.py`; CLI `--coverage` / `--delta`). Rounds 1–3 hardened the production complementary board; Round 4 landed P1 under that gate (see [`docs/metrics-iteration-log.md`](docs/metrics-iteration-log.md)). Next coding fork: **P2** mutation / dynamic adapters.
 
 ---
 
@@ -238,7 +238,7 @@ Exempt via markers/config: `smoke`, `import_ping`, `property`, `hypothesis`, exp
 - No test execution → fast, agent-friendly, CI-cheap.
 - Round 2 lesson: shipping P0 briefly raised corpus `max_v_poly` (`_classify_assert_test` → 23). Static test quality and production spaghetti pressure must land together—see §11.5 process gate.
 
-**P1 — Production linkage + coverage ingest**
+**P1 — Production linkage + coverage ingest — DONE**
 
 - Resolve test imports/calls into corpus symbols (reuse `resolve.py`).
 - Ingest `coverage.json`; flag “line covered only by none/weak oracle tests.”
@@ -357,7 +357,7 @@ This module’s niche inside `py-code-metrics`: **one JSON report** combining pr
 
 ## 10. Immediate next implementation step (when coding)
 
-**§11 metric-suite hardening is done** (Round 3 in the iteration log). Next: **P1** — production linkage + `coverage.json` ingest, with a before/after self-analysis via `scripts/compare_self_metrics.py` and a short note in [`docs/metrics-iteration-log.md`](docs/metrics-iteration-log.md).
+**P1 is done** (Round 4 in the iteration log). Next: **P2** — mutation / dynamic optional adapters (mutmut/Cosmic Ray ingest; optional state-field coverage proxy), with a before/after self-analysis via `scripts/compare_self_metrics.py`.
 
 ---
 
@@ -412,7 +412,7 @@ These changes harden the **production** complementary suite so it keeps guiding 
 | 5 | §11.5 self-analysis / CI gate | **done** |
 | 6 | §11.6 reduction-like annotation | **done** |
 
-Next product work: **P1** test-quality under this board.
+Next product work: **P2** mutation / dynamic adapters.
 
 ### 11.8 What not to implement (confirmed anti-patterns)
 

@@ -13,6 +13,15 @@ uv run py-code-metrics /path/to/project
 
 # Or as a module
 uv run python -m py_code_metrics /path/to/project
+
+# Test-quality mode (oracle tiers / smells); pass project root for SUT linkage
+uv run py-code-metrics --tests /path/to/project
+
+# Merge coverage.py JSON floors; with --show-contexts data, flag weak-oracle-only lines
+uv run py-code-metrics --tests --coverage coverage.json /path/to/project
+
+# Restrict findings to git-changed *.py paths
+uv run py-code-metrics --tests --delta /path/to/project
 ```
 
 JSON is written to stdout. Pipe or redirect as needed:
@@ -21,6 +30,20 @@ JSON is written to stdout. Pipe or redirect as needed:
 uv run py-code-metrics . > metrics.json
 ```
 
+## Test-quality mode (`--tests`)
+
+Static oracle/smell analysis (P0) plus production linkage and optional coverage ingest (P1):
+
+| Signal | Meaning |
+| --- | --- |
+| `oracle_tier` | `none` / `weak` / `strong` per test |
+| `smell_codes` | e.g. `NO_ORACLE`, `TAUTOLOGY`, `WEAK_ORACLE`, `SWALLOWED_ERROR` |
+| `calls_production` | Resolved production callable qnames invoked by the test |
+| `coverage_line` / `coverage_branch` | Floors from `--coverage` JSON |
+| `weak_oracle_covered_lines` | Lines whose run-contexts are only none/weak-oracle tests (needs contexts) |
+| `unchecked_covered_callables` | Covered production callables with no strong-oracle static caller |
+
+Pass the **project root** (not only `tests/`) so SUT resolve can see production modules. Generate contexts with `pytest --cov-context=test` then `coverage json --show-contexts`.
 ## Metrics
 
 The P0 suite below is the counterbalancing set from the research notes: gaming one axis tends to worsen another.

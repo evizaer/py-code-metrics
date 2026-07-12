@@ -1,0 +1,30 @@
+{
+  "meta": {
+    "format": 3,
+    "version": "7.0.0",
+    "timestamp": "2026-07-11T00:00:00",
+    "branch_coverage": true,
+    "show_contexts": false
+  },
+  "files": {
+    "prod.py": {
+      "executed_lines": [5, 9, 13],
+      "summary": {
+        "covered_lines": 3,
+        "num_statements": 3,
+        "percent_covered": 100.0,
+        "covered_branches": 2,
+        "num_branches": 2,
+        "missing_lines": 0
+      }
+    }
+  },
+  "totals": {
+    "covered_lines": 3,
+    "num_statements": 3,
+    "percent_covered": 87.5,
+    "covered_branches": 2,
+    "num_branches": 4,
+    "missing_lines": 0
+  }
+}

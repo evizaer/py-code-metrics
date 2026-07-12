@@ -27,7 +27,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--tests",
         action="store_true",
-        help="Analyze test modules for oracle strength and fake-test smells (P0)",
+        help="Analyze test modules for oracle strength and fake-test smells",
+    )
+    parser.add_argument(
+        "--coverage",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="With --tests: ingest coverage.py JSON (floors + optional contexts)",
+    )
+    parser.add_argument(
+        "--delta",
+        action="store_true",
+        help="With --tests: filter findings to git-changed *.py paths",
     )
     parser.add_argument(
         "--indent",
@@ -45,7 +57,23 @@ def main(argv: list[str] | None = None) -> int:
     if not path.exists():
         print(f"error: path does not exist: {path}", file=sys.stderr)
         return 2
-    report = analyze_tests_path(path) if args.tests else analyze_path(path)
+    if args.coverage is not None and not args.tests:
+        print("error: --coverage requires --tests", file=sys.stderr)
+        return 2
+    if args.delta and not args.tests:
+        print("error: --delta requires --tests", file=sys.stderr)
+        return 2
+    if args.coverage is not None and not args.coverage.exists():
+        print(f"error: coverage file does not exist: {args.coverage}", file=sys.stderr)
+        return 2
+    if args.tests:
+        report = analyze_tests_path(
+            path,
+            coverage_path=args.coverage,
+            delta=args.delta,
+        )
+    else:
+        report = analyze_path(path)
     sys.stdout.write(report_to_json(report, indent=args.indent))
     return 0
 

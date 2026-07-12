@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from py_code_metrics.discover import discover_tests
+from py_code_metrics.discover import discover_python_files, discover_tests
+from py_code_metrics.metrics.test_coverage import apply_coverage, load_coverage_json
+from py_code_metrics.metrics.test_delta import changed_python_paths
 from py_code_metrics.metrics.test_oracles import extract_test_functions
 from py_code_metrics.metrics.test_smells import derive_smells, summarize_oracles
+from py_code_metrics.metrics.test_sut import resolve_production_calls
 from py_code_metrics.model import (
     TestCaseMetrics,
     TestMetricsReport,
@@ -15,39 +18,86 @@ from py_code_metrics.model import (
     TestOverallReport,
 )
 from py_code_metrics.parse import parse_files
+from py_code_metrics.resolve import ModuleInfo, SymbolIndex, build_symbol_index
 
 
-def analyze_tests_path(root: Path) -> TestMetricsReport:
-    """Discover test modules and emit a static oracle/smell report."""
+def analyze_tests_path(
+    root: Path,
+    *,
+    coverage_path: Path | None = None,
+    delta: bool = False,
+) -> TestMetricsReport:
+    """Discover test modules and emit oracle/smell (+ optional coverage) report."""
     root = root.resolve()
-    paths = discover_tests(root)
-    parsed, skipped = parse_files(paths)
-    modules: list[TestModuleReport] = []
-    for pf in parsed:
-        try:
-            rel = str(pf.path.resolve().relative_to(root))
-        except ValueError:
-            rel = str(pf.path)
-        mod_name = _module_name(root, pf.path)
-        tests = [_to_metrics(rel, info) for info in extract_test_functions(pf.tree)]
-        modules.append(
-            TestModuleReport(
-                path=rel,
-                name=mod_name,
-                metrics=_module_rollup(tests),
-                tests=tests,
-            )
-        )
+    all_parsed, skipped = parse_files(discover_python_files(root))
+    index = build_symbol_index(all_parsed, root)
+    test_paths = {p.resolve() for p in discover_tests(root)}
+    modules = [
+        _module_report(root, pf.path, pf.tree, index)
+        for pf in all_parsed
+        if pf.path.resolve() in test_paths
+    ]
     modules.sort(key=lambda m: m.path)
-    return TestMetricsReport(
-        input={
-            "root": str(root),
-            "files_analyzed": len(parsed),
-            "files_skipped": [{"path": str(s.path), "reason": s.reason} for s in skipped],
-        },
+
+    meta: dict = {
+        "root": str(root),
+        "files_analyzed": len(modules),
+        "files_skipped": [{"path": str(s.path), "reason": s.reason} for s in skipped],
+    }
+    report = TestMetricsReport(
+        input=meta,
         overall=_overall(modules),
         modules=modules,
     )
+
+    if coverage_path is not None:
+        ingest = load_coverage_json(coverage_path)
+        apply_coverage(report, index, ingest, root)
+        meta["coverage_path"] = str(coverage_path.resolve())
+        meta["coverage_has_contexts"] = ingest.has_contexts
+
+    if delta:
+        paths, note = changed_python_paths(root)
+        meta["delta"] = True
+        meta["files_in_delta"] = paths
+        if note:
+            meta["delta_note"] = note
+        _apply_delta_filter(report, set(paths))
+
+    return report
+
+
+def _module_info_for_path(index: SymbolIndex, path: Path) -> ModuleInfo | None:
+    resolved = path.resolve()
+    for mi in index.modules.values():
+        if mi.path.resolve() == resolved:
+            return mi
+    return None
+
+
+def _module_report(root: Path, path: Path, tree, index: SymbolIndex) -> TestModuleReport:
+    rel = _rel(root, path)
+    mod_name = _module_name(root, path)
+    mi = _module_info_for_path(index, path)
+    tests: list[TestCaseMetrics] = []
+    for info in extract_test_functions(tree):
+        case = _to_metrics(rel, info)
+        if mi is not None:
+            case.calls_production = resolve_production_calls(index, mi, info)
+        tests.append(case)
+    return TestModuleReport(
+        path=rel,
+        name=mod_name,
+        metrics=_module_rollup(tests),
+        tests=tests,
+    )
+
+
+def _rel(root: Path, path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(root))
+    except ValueError:
+        return str(path)
 
 
 def _module_name(root: Path, path: Path) -> str:
@@ -69,7 +119,6 @@ def _infer_framework(info) -> str:
         return "unittest"
     if info.markers:
         return "pytest"
-    # Default for free functions named test_*
     return "pytest"
 
 
@@ -136,3 +185,45 @@ def _overall(modules: list[TestModuleReport]) -> TestOverallReport:
         for t in high
     ]
     return overall
+
+
+def _apply_delta_filter(report: TestMetricsReport, delta_paths: set[str]) -> None:
+    """Keep modules / findings that touch changed paths (empty delta → no filter)."""
+    if not delta_paths:
+        return
+    normalized = {p.replace("\\", "/") for p in delta_paths}
+    saved_line = report.overall.coverage_line
+    saved_branch = report.overall.coverage_branch
+    saved_weak = report.overall.weak_oracle_covered_lines
+    saved_unchecked = report.overall.unchecked_covered_callables
+
+    report.modules = [m for m in report.modules if _path_in_delta(m.path, normalized)]
+    report.overall = _overall(report.modules)
+    report.overall.coverage_line = saved_line
+    report.overall.coverage_branch = saved_branch
+    report.overall.weak_oracle_covered_lines = [
+        item for item in saved_weak if _path_in_delta(item["file"], normalized)
+    ]
+    report.overall.weak_oracle_covered_line_count = len(report.overall.weak_oracle_covered_lines)
+    report.overall.unchecked_covered_callables = [
+        q for q in saved_unchecked if _qname_in_delta(q, normalized)
+    ]
+    report.overall.unchecked_covered_callable_count = len(
+        report.overall.unchecked_covered_callables
+    )
+
+
+def _path_in_delta(path: str, delta_paths: set[str]) -> bool:
+    p = path.replace("\\", "/")
+    if p in delta_paths:
+        return True
+    return any(p.endswith(d) or d.endswith(p) for d in delta_paths)
+
+
+def _qname_in_delta(qname: str, delta_paths: set[str]) -> bool:
+    parts = qname.split(".")
+    for i in range(len(parts) - 1, 0, -1):
+        candidate = "/".join(parts[:i]) + ".py"
+        if _path_in_delta(candidate, delta_paths):
+            return True
+    return False
