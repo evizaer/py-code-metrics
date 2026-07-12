@@ -15,6 +15,25 @@ CallableKind = Literal[
 ]
 
 
+@dataclass(frozen=True)
+class Thresholds:
+    """Soft gates emitted in reports and used by hotspot predicates."""
+
+    nesting_depth: int = 3
+    params: int = 5
+    v_poly_strict: int = 10
+    v_poly_lenient: int = 15
+    cognitive: int = 15
+    statements: int = 50
+    lcom4_max: int = 1
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+DEFAULT_THRESHOLDS = Thresholds()
+
+
 @dataclass
 class CallableMetrics:
     name: str
@@ -45,6 +64,9 @@ class CallableMetrics:
     call_count: int = 0
     local_stores: int = 0
     comprehension_count: int = 0
+    dispatch_exempt: bool = False
+    unpaid: bool = False
+    reduction_like: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -58,6 +80,8 @@ class ClassMetrics:
     lcom4: int = 0
     wmc: int = 0
     nom: int = 0
+    dispatch_class: bool = False
+    lcom4_gate_exempt: bool = False
     methods: list[CallableMetrics] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -69,6 +93,8 @@ class ClassMetrics:
                 "lcom4": self.lcom4,
                 "wmc": self.wmc,
                 "nom": self.nom,
+                "dispatch_class": self.dispatch_class,
+                "lcom4_gate_exempt": self.lcom4_gate_exempt,
             },
             "methods": [m.to_dict() for m in self.methods],
         }
@@ -87,6 +113,11 @@ class ModuleRollup:
     mean_cognitive: float = 0.0
     mean_car: float = 0.0
     mean_lmd: float = 0.0
+    n_v_poly_gt_15: int = 0
+    n_nesting_gt_3: int = 0
+    n_unpaid_v_poly_gt_15: int = 0
+    n_unpaid_nesting_gt_3: int = 0
+    n_unpaid_hotspots: int = 0
     roles: dict[str, int] = field(default_factory=lambda: {"core": 0, "leaf": 0, "helper": 0})
 
     def to_dict(self) -> dict[str, Any]:
@@ -124,28 +155,48 @@ class OverallReport:
             "methods": 0,
         }
     )
-    complexity: dict[str, float] = field(
+    complexity: dict[str, Any] = field(
         default_factory=lambda: {
             "max_v_poly": 0,
             "max_nesting": 0,
             "mean_cyclomatic": 0.0,
             "mean_cognitive": 0.0,
+            "n_v_poly_gt_15": 0,
+            "n_nesting_gt_3": 0,
+            "n_unpaid_v_poly_gt_15": 0,
+            "n_unpaid_nesting_gt_3": 0,
+            "n_unpaid_hotspots": 0,
         }
     )
-    etspa: dict[str, float] = field(
+    etspa: dict[str, Any] = field(
         default_factory=lambda: {
             "sum_S": 0.0,
             "frac_S_le_0": 0.0,
             "frac_fan_in_le_1": 0.0,
+            "note": "Global fracs mix leaves+helpers; prefer helpers_cores for gates.",
+            "helpers_cores": {
+                "callable_count": 0,
+                "sum_S": 0.0,
+                "frac_S_le_0": 0.0,
+                "frac_fan_in_le_1": 0.0,
+            },
         }
     )
-    expression: dict[str, float] = field(
+    expression: dict[str, Any] = field(
         default_factory=lambda: {
             "mean_car": 0.0,
             "mean_lmd": 0.0,
             "mean_cvr": 0.0,
+            "leaves": {
+                "callable_count": 0,
+                "mean_car": 0.0,
+                "mean_lmd": 0.0,
+                "mean_nesting": 0.0,
+                "mean_cognitive": 0.0,
+            },
         }
     )
+    hotspots: list[dict[str, Any]] = field(default_factory=list)
     roles: dict[str, int] = field(default_factory=lambda: {"core": 0, "leaf": 0, "helper": 0})
     imports: dict[str, Any] = field(
         default_factory=lambda: {
@@ -164,17 +215,7 @@ class MetricsReport:
     version: int = 1
     tool: str = "py-code-metrics"
     input: dict[str, Any] = field(default_factory=dict)
-    thresholds: dict[str, Any] = field(
-        default_factory=lambda: {
-            "nesting_depth": 3,
-            "params": 5,
-            "v_poly_strict": 10,
-            "v_poly_lenient": 15,
-            "cognitive": 15,
-            "statements": 50,
-            "lcom4_max": 1,
-        }
-    )
+    thresholds: dict[str, Any] = field(default_factory=lambda: DEFAULT_THRESHOLDS.to_dict())
     overall: OverallReport = field(default_factory=OverallReport)
     modules: list[ModuleReport] = field(default_factory=list)
 

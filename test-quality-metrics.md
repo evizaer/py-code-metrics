@@ -4,6 +4,8 @@
 
 **Verdict.** Line/branch coverage measures **execution**, not **verification**. A complementary suite is required: (1) coverage adequacy as a floor, (2) static oracle/smell signals as a fast fake-test detector, (3) mutation (or mutation-correlated proxies) as the gold standard for fault-detection power. Single-metric optimization is unsafe under Goodhart pressure—agents optimizing “coverage %” or “tests exist” correctly emit the cheapest green artifacts. Pair coverage with oracle strength; pair oracle counts with mutation or state-field checks so strong-looking assertions that check the wrong thing still fail.
 
+**Status (2026-07).** P0 static fake-test detection is implemented (`metrics/test_oracles.py`, `metrics/test_smells.py`, `analyze_tests.py`). Two rounds of metrics-guided self-iteration on `src/py_code_metrics` (documented in [`docs/metrics-iteration-log.md`](docs/metrics-iteration-log.md)) validated the complementary production suite. **Round 3** closed the dashboard/gate gaps (F1–F6 / §11): unpaid hotspots, role-split boards, visitor exemption, over-threshold counts, `reduction_like`, and `scripts/compare_self_metrics.py`. Next coding fork: **P1** coverage ingest + SUT linkage under that board.
+
 ---
 
 ## 1. The problem: coverage lies by omission
@@ -230,11 +232,11 @@ Exempt via markers/config: `smoke`, `import_ping`, `property`, `hypothesis`, exp
 
 ### 5.7 Phased delivery
 
-**P0 — Static fake-test detector (highest leverage, matches repo style)**
+**P0 — Static fake-test detector — DONE**
 
 - Discover/parse tests; classify oracles; emit smell codes; JSON rollups.
 - No test execution → fast, agent-friendly, CI-cheap.
-- Align codes with known catalogs so humans recognize findings.
+- Round 2 lesson: shipping P0 briefly raised corpus `max_v_poly` (`_classify_assert_test` → 23). Static test quality and production spaghetti pressure must land together—see §11.5 process gate.
 
 **P1 — Production linkage + coverage ingest**
 
@@ -253,6 +255,7 @@ Exempt via markers/config: `smoke`, `import_ping`, `property`, `hypothesis`, exp
 - SARIF/JUnit output; pre-commit exit codes (high vs low).
 - PR summary: “N new tests; M none-oracle; K survivors on touched lines.”
 - Document anti-gaming explicitly (like `anti-spaghetti-research.md` §2.8–2.10).
+- Include production complementary board (not only oracle tiers) so agents cannot green test rollups while worsening unpaid hotspots in the analyzer itself.
 
 ### 5.8 Interaction with existing production metrics
 
@@ -261,6 +264,17 @@ Production spaghetti metrics and test-quality metrics reinforce each other:
 - High `v_poly` / nesting **cores** need **localized strong oracles** and mutation attention—not incidental coverage.
 - ETSPA “expressive leaves” still need behavioral checks when they own domain rules.
 - Do not encourage exploding test micro-files for coverage theater; prefer fewer strong tests (same anti-dust ethos).
+
+**Lessons from self-iteration (Rounds 1–2)** that apply when evolving this module:
+
+| Lesson | Implication for test-quality work |
+| --- | --- |
+| Complexity + unpaid reuse is the real hotspot | Prefer paid shared oracles (`F≥2`, `S≫0`) over splitting each classifier into F=1 shards for a greener local `v_poly` |
+| “Reject all F=1” is too blunt | Named subproblems that cut a leaf’s cognitive cliff (e.g. `_combine_oracle_hits`) may stay F=1; reject **unpaid relocation** of branches, not vocabulary |
+| Leaf pipeline steps look like ETSPA debt | `derive_smells` → thin leaf + `_smell_codes` is intentional leaf speech; do not optimize those steps for `sum_S` |
+| Paid cores can be locally complex | `_classify_compare` at high `v_poly` with `S=+210` is healthy reuse—do not “fix” it for max-alone |
+| Visitors / polymorphic dispatch are measurement artifacts | Oracle collectors that subclass `NodeVisitor` will show F=0 / bad LCOM4; do not split into class-per-node to game cohesion |
+| Single-scalar chase fails | Keep oracle-tier dashboards *and* production means/`sum_S`/role-split fracs when reviewing a test-module change |
 
 ---
 
@@ -343,4 +357,69 @@ This module’s niche inside `py-code-metrics`: **one JSON report** combining pr
 
 ## 10. Immediate next implementation step (when coding)
 
-Implement **P0** only: `discover_tests` + AST oracle classifier + `TestCaseMetrics` JSON under a `tests` report section, with thresholds for `NO_ORACLE` / `TAUTOLOGY` / `WEAK_ORACLE`. Validate on this repo’s `tests/` package and a fixture corpus of intentionally fake tests. Defer coverage/mutation ingest until the static signal is stable and documented beside this file.
+**§11 metric-suite hardening is done** (Round 3 in the iteration log). Next: **P1** — production linkage + `coverage.json` ingest, with a before/after self-analysis via `scripts/compare_self_metrics.py` and a short note in [`docs/metrics-iteration-log.md`](docs/metrics-iteration-log.md).
+
+---
+
+## 11. Implementation plan: metric improvements from self-iteration
+
+These changes harden the **production** complementary suite so it keeps guiding test-quality (and other) work without false debt or false wins. **Status: implemented in Round 3** (see iteration log feedback tracker F1–F6).
+
+### 11.1 High — Dispatch-exempt scoring for AST `NodeVisitor` patterns — DONE
+
+**What changed.** `visit_*` / `generic_visit` on `ast.NodeVisitor` subclasses get `dispatch_exempt=True`; classes get `dispatch_class` / `lcom4_gate_exempt`. Exempt methods are not `unpaid` and never enter `hotspots`.
+
+**Why.** Fan-in 0 and bleak ETSPA were measurement artifacts; splitting visitors games LCOM4.
+
+### 11.2 High — Hotspot = high complexity *and* unpaid — DONE
+
+**What changed.** Per-callable `unpaid`; `overall.hotspots[]` sorted by complexity among unpaid symbols only. Paid cores (e.g. `_classify_compare`) drop off the fix list.
+
+**Why.** Complexity alone measures decision size; unpaidness measures whether splitting helps.
+
+### 11.3 Medium — Split dashboards by role (helper ETSPA vs leaf expression) — DONE
+
+**What changed.** `etspa.helpers_cores` (helpers+cores, non-exempt) and `expression.leaves`. Global fracs kept for continuity with a note to prefer the split boards for gates.
+
+**Why.** Leaf pipeline vocabulary is F=1 by construction; global `frac_fan_in≤1` punished the positive shape.
+
+### 11.4 Medium — Count of over-threshold callables, not only corpus max — DONE
+
+**What changed.** `n_v_poly_gt_15`, `n_nesting_gt_3`, unpaid variants, `n_unpaid_hotspots` on overall complexity and module rollups.
+
+**Why.** Max can stick while counts improve (Round 2 nest 4→3 invisible on max alone).
+
+### 11.5 Medium — Process: self-analysis gate after feature drops — DONE
+
+**What changed.** `scripts/compare_self_metrics.py` + README section. Fails on rising unpaid hotspot count or unpaid `max_v_poly`.
+
+**Why.** P0 briefly shipped `v_poly=23` oracle spaghetti; gates make that visible.
+
+### 11.6 Low — Aggregation / reduction-only discount on `v_poly` — DONE
+
+**What changed.** `reduction_like` annotation; hotspot predicate does not fire on high `v_poly` alone when set (nesting/cognitive can still fire).
+
+**Why.** Flat aggregation leaves overstate spaghetti risk relative to nested unpaid debt.
+
+### 11.7 Suggested implementation order
+
+| Step | Item | Status |
+| --- | --- | --- |
+| 1 | §11.2 unpaid hotspot predicate + `hotspots[]` | **done** |
+| 2 | §11.4 over-threshold counts | **done** |
+| 3 | §11.3 role-split ETSPA / expression dashboards | **done** |
+| 4 | §11.1 NodeVisitor dispatch exemption | **done** |
+| 5 | §11.5 self-analysis / CI gate | **done** |
+| 6 | §11.6 reduction-like annotation | **done** |
+
+Next product work: **P1** test-quality under this board.
+
+### 11.8 What not to implement (confirmed anti-patterns)
+
+From iteration stop rules—do not productize these as “fixes”:
+
+- Strategy / class-per-case hierarchies to lower raw CC while `v_poly` rises.
+- Splitting each `visit_*` into a tiny free function to beautify LCOM4/NOM.
+- Maximizing average ETSPA by deleting low-`S` leaf vocabulary or visitors.
+- Artificial `self._touch` coupling to force LCOM4→1 on visitors.
+- Re-extracting resolve/oracle branches solely to green one symbol’s `v_poly` without F≥2 or real cognitive relief.

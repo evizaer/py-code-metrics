@@ -1,9 +1,31 @@
 # Metrics-guided iteration log
 
-Target corpus: `src/py_code_metrics` (the tool analyzing itself).  
-Snapshots: `/tmp/pcm-baseline.json` → after changeset 1 → `/tmp/pcm-after2.json`.
+Target corpus: `src/py_code_metrics` (the tool analyzing itself).
 
-## Overall deltas
+## Index — commits and feedback
+
+| Round | Approx. commits / changeset | Snapshot | Notes |
+| --- | --- | --- | --- |
+| 1 | pre-`1446e9b` refactors (CS1–CS2) | `/tmp/pcm-baseline.json` → `/tmp/pcm-after2.json` | Flatten hotspots; roll back unpaid F=1 |
+| 2 | `add5082` (P0 tests) + `1446e9b` (CS3) | `/tmp/pcm-self-before.json` → `/tmp/pcm-iter-final.json` | Oracle cleanup; paid extracts; stop rule |
+| 3 | dashboard hardening (worktree; **commit TBD**) | `/tmp/pcm-round3-before.json` → `/tmp/pcm-round3-after.json` | Implements Round 2 product feedback |
+
+### Feedback tracker (Round 2 → status)
+
+| ID | Feedback (R2) | Priority | Status | Addressed in |
+| --- | --- | --- | --- | --- |
+| F1 | Exempt AST `NodeVisitor` dispatch (fan-in / LCOM4 / ETSPA) | High | **done** | R3 — `dispatch_exempt`, `dispatch_class`, `lcom4_gate_exempt` |
+| F2 | Hotspot = high complexity **and** unpaid | High | **done** | R3 — `overall.hotspots`, `unpaid` flag |
+| F3 | Split dashboards: helper ETSPA vs leaf CAR/nesting | Medium | **done** | R3 — `etspa.helpers_cores`, `expression.leaves` |
+| F4 | Counts of nest>3 / v_poly>15, not only max | Medium | **done** | R3 — `n_*` fields on complexity / module rollup |
+| F5 | Self-analysis gate after feature drops | Medium | **done** | R3 — `scripts/compare_self_metrics.py` + README |
+| F6 | Reduction-only / aggregation `v_poly` discount | Low | **done** | R3 — `reduction_like` annotation; hotspot sort ignores v_poly-alone when set |
+
+---
+
+## Round 1 — overall deltas
+
+Snapshots: `/tmp/pcm-baseline.json` → after changeset 1 → `/tmp/pcm-after2.json`.
 
 | Metric | Baseline | After CS1 | After CS2 (final) | Δ baseline→final |
 | --- | ---: | ---: | ---: | ---: |
@@ -22,7 +44,7 @@ Snapshots: `/tmp/pcm-baseline.json` → after changeset 1 → `/tmp/pcm-after2.j
 
 ---
 
-## Changeset 1 — flatten hotspots; extract only when reuse pays
+## Round 1 / Changeset 1 — flatten hotspots; extract only when reuse pays
 
 **Files:** `resolve.py`, `roles.py`, `analyze.py`, `metrics/imports.py`, `metrics/v_poly.py`
 
@@ -48,7 +70,7 @@ Snapshots: `/tmp/pcm-baseline.json` → after changeset 1 → `/tmp/pcm-after2.j
 
 ---
 
-## Changeset 2 — roll back unpaid F≤1 extracts
+## Round 1 / Changeset 2 — roll back unpaid F≤1 extracts
 
 **Files:** `resolve.py`
 
@@ -197,14 +219,14 @@ Corpus is not comparable 1:1 to Round 1 (new modules). Compare **within Round 2*
 
 ### Feedback for metric / product evolution
 
-| Feedback | Priority |
-| --- | --- |
-| Exempt or specially score AST `NodeVisitor` dispatch (fan-in / LCOM4 / ETSPA) | High — recurring false debt |
-| Hotspot predicate: high complexity **and** unpaid (F≤1 or S≤0), so paid cores are not “fixed” | High |
-| Split dashboards: helper ETSPA/frac_F vs leaf CAR/nesting | Medium |
-| Count of nest>3 / v_poly>15 callables, not only corpus max | Medium |
-| After feature drops (like P0), require a self-analysis gate so new modules cannot raise `max_v_poly` unnoticed | Medium (process) |
-| `v_poly` on pure aggregation functions overstates risk; optional “reduction-only” heuristic | Low |
+| ID | Feedback | Priority | Later |
+| --- | --- | --- | --- |
+| F1 | Exempt or specially score AST `NodeVisitor` dispatch (fan-in / LCOM4 / ETSPA) | High — recurring false debt | → **R3** |
+| F2 | Hotspot predicate: high complexity **and** unpaid (F≤1 or S≤0), so paid cores are not “fixed” | High | → **R3** |
+| F3 | Split dashboards: helper ETSPA/frac_F vs leaf CAR/nesting | Medium | → **R3** |
+| F4 | Count of nest>3 / v_poly>15 callables, not only corpus max | Medium | → **R3** |
+| F5 | After feature drops (like P0), require a self-analysis gate so new modules cannot raise `max_v_poly` unnoticed | Medium (process) | → **R3** |
+| F6 | `v_poly` on pure aggregation functions overstates risk; optional “reduction-only” heuristic | Low | → **R3** |
 
 ### Still-hot after Round 2 (accept, don’t cosmetics)
 
@@ -220,3 +242,72 @@ Corpus is not comparable 1:1 to Round 1 (new modules). Compare **within Round 2*
 ### Round 2 verdict
 
 The suite **successfully** (1) caught P0’s oracle spaghetti, (2) steered cleanup toward paid sharing and in-place flattening, (3) rejected resolve micro-extraction again, and (4) provided a clear **stop** once remaining hotspots were either paid, inherent, or design-bound. Net vs post-P0: lower means, better `sum_S`, `max_v_poly` back to the Round 1 plateau (19), resolve nesting improved without fragmentation. Metrics worked best as a **counterbalancing board**; they work worst when a single scalar (`max_v_poly` or `frac_fan_in≤1`) is optimized in isolation — the same Goodhart lesson as Round 1, now validated on a larger corpus that includes the test-quality module.
+
+---
+
+## Round 3 — dashboard hardening (addresses F1–F6)
+
+**Changeset:** implement `test-quality-metrics.md` §11 (product feedback from Round 2).  
+**Commit:** TBD (fill SHA when landed). Base HEAD at start: `1446e9b`.  
+**Files:** `dashboard.py` (new), `model.py`, `analyze.py`, `scripts/compare_self_metrics.py`, `README.md`, tests/fixtures under `dashboard_pkg/`.  
+**Snapshots:** `/tmp/pcm-round3-before.json` (post-R2 corpus, old report shape) → `/tmp/pcm-round3-after.json`.
+
+### What shipped (by feedback ID)
+
+| ID | Plain-language change | Verification |
+| --- | --- | --- |
+| F2 | Report `unpaid` + `overall.hotspots[]` — complexity above soft gates **and** (F≤1 or S≤0) | `_classify_compare` (v=15, S=+210) **not** in hotspots; `resolve_call` is #1 |
+| F4 | `n_v_poly_gt_15`, `n_nesting_gt_3`, unpaid variants on complexity / module rollup | Present on after JSON (`n_unpaid_hotspots=11`, `n_nesting_gt_3=2`) |
+| F3 | `etspa.helpers_cores` vs `expression.leaves` | helpers_cores `sum_S≈+335`, `frac_fan_in≤1≈0.48` vs global `frac≈0.80` |
+| F1 | `dispatch_exempt` on `visit_*`; class `dispatch_class` / `lcom4_gate_exempt` | 42 exempt methods; none appear in `hotspots` |
+| F6 | `reduction_like` flag; hotspot predicate ignores high `v_poly` alone when set | Annotates flat aggregators; deep unpaid leaves still flag |
+| F5 | `scripts/compare_self_metrics.py` + README self-analysis section | Gate **PASS** before→after (`max_v_poly` held at 19) |
+
+### Overall deltas (Round 3)
+
+Comparable core board (same soft meaning as R2 final). New module `dashboard.py` adds callables — global `sum_S` dips as expected for a feature drop; **gated** helper board stays healthy.
+
+| Metric | Before (R2 stop) | After R3 | Δ |
+| --- | ---: | ---: | ---: |
+| `max_v_poly` | 19 | **19** | 0 |
+| `max_nesting` | 4 | 4 | 0 |
+| `mean_cyclomatic` | 4.240 | 4.235 | ≈0 |
+| `mean_cognitive` | 4.503 | 4.524 | +0.021 |
+| `sum_S` (global) | -3824.2 | -3969.2 | −145 (new module dust) |
+| `frac_S≤0` | 0.863 | 0.872 | +0.009 |
+| `frac_fan_in≤1` (global) | 0.800 | 0.797 | −0.003 |
+| `n_unpaid_hotspots` | — | **11** | new signal |
+| `n_v_poly_gt_15` / unpaid | — | 3 / **2** | new signal |
+| `n_nesting_gt_3` / unpaid | — | 2 / **2** | new signal |
+| `helpers_cores.sum_S` | — | **+335** | new gated board |
+| `helpers_cores.frac_fan_in≤1` | — | **0.475** | honest fragmentation |
+| functions / methods | 110 / 65 | 121 / 66 | +11 / +1 |
+| import cycles | 0 | 0 | unchanged |
+| visitor LCOM4 | 4 | 4 | left alone (now `lcom4_gate_exempt`) |
+
+### Hotspot board (after) — top unpaid
+
+| Symbol | v_poly | nest | cog | Why listed |
+| --- | ---: | ---: | ---: | --- |
+| `resolve.resolve_call` | 19 | 3 | 33 | Unpaid leaf; design-bound |
+| `compute_lcom4` | 18 | 3 | 27 | Graph algorithm |
+| `build_override_index` | 14 | 3 | 23 | Hierarchy indexing |
+| `analyze._module_report` | 14 | 2 | 19 | Unpaid leaf vocabulary |
+| `resolve._index_module_body` | 12 | 2 | 25 | Recursive indexer |
+
+**Excluded by design:** `_classify_compare` (paid), all `visit_*` (F1 exempt).
+
+### Process note (F5)
+
+```bash
+uv run py-code-metrics src/py_code_metrics > /tmp/pcm-before.json
+# edit
+uv run py-code-metrics src/py_code_metrics > /tmp/pcm-after.json
+uv run python scripts/compare_self_metrics.py /tmp/pcm-before.json /tmp/pcm-after.json
+```
+
+Fails on rising `n_unpaid_hotspots`, or rising `max_v_poly` when the new max symbol is unpaid and not `reduction_like`.
+
+### Round 3 verdict
+
+Product gaps from Round 2 are closed without regressing the R2 complexity plateau (`max_v_poly=19`). The suite now **points agents at unpaid debt** and **stops nagging visitors / paid cores**. Global `sum_S` worsened slightly from new dashboard helpers (accepted feature cost); use `helpers_cores` for ETSPA gates going forward. Next coding fork: P1 test-quality (coverage ingest) under this board — with a before/after self-analysis note in this log.

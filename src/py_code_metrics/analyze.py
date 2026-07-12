@@ -3,8 +3,18 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TypedDict
+from typing import Any, TypedDict
 
+from py_code_metrics.dashboard import (
+    class_is_ast_dispatcher,
+    etspa_board,
+    expression_board,
+    hotspot_entry,
+    is_dispatch_method_name,
+    is_hotspot,
+    is_reduction_like,
+    is_unpaid,
+)
 from py_code_metrics.discover import discover_python_files
 from py_code_metrics.metrics.call_graph import CallGraph, collect_calls_in_function
 from py_code_metrics.metrics.cohesion import compute_lcom4, compute_wmc
@@ -20,12 +30,14 @@ from py_code_metrics.metrics.expression import analyze_expression
 from py_code_metrics.metrics.imports import ImportGraph, build_import_graph
 from py_code_metrics.metrics.v_poly import build_override_index, v_poly_for_callable
 from py_code_metrics.model import (
+    DEFAULT_THRESHOLDS,
     CallableMetrics,
     ClassMetrics,
     MetricsReport,
     ModuleReport,
     ModuleRollup,
     OverallReport,
+    Thresholds,
 )
 from py_code_metrics.parse import parse_files
 from py_code_metrics.resolve import (
@@ -48,12 +60,22 @@ class _CallableStats(TypedDict):
     mean_cognitive: float
     mean_car: float
     mean_lmd: float
+    n_v_poly_gt_15: int
+    n_nesting_gt_3: int
+    n_unpaid_v_poly_gt_15: int
+    n_unpaid_nesting_gt_3: int
+    n_unpaid_hotspots: int
     roles: dict[str, int]
+    hotspots: list[dict[str, Any]]
+    helpers_cores_etspa: dict[str, Any]
+    leaves_expression: dict[str, Any]
+    mean_cvr: float
 
 
-def analyze_path(root: Path) -> MetricsReport:
+def analyze_path(root: Path, *, thresholds: Thresholds | None = None) -> MetricsReport:
     """Leaf pipeline: discover → index → score → assemble report."""
     root = root.resolve()
+    thresholds = thresholds or DEFAULT_THRESHOLDS
     parsed, skipped = parse_files(discover_python_files(root))
     index = build_symbol_index(parsed, root)
     call_graph = build_call_graph(index)
@@ -62,13 +84,24 @@ def analyze_path(root: Path) -> MetricsReport:
         {cq: ci.node for cq, ci in index.classes.items()},
         {cq: ci.bases_resolved for cq, ci in index.classes.items()},
     )
+    dispatcher_classes = {cq for cq in index.classes if class_is_ast_dispatcher(index, cq)}
     call_costs = _collect_call_costs(index, call_graph)
     callable_metrics = {
-        qname: _score_callable(index, call_graph, override_sets, call_costs, qname, info)
+        qname: _score_callable(
+            index,
+            call_graph,
+            override_sets,
+            call_costs,
+            dispatcher_classes,
+            qname,
+            info,
+        )
         for qname, info in index.callables.items()
     }
     modules_out = [
-        _module_report(root, index, import_graph, callable_metrics, mod_name)
+        _module_report(
+            root, index, import_graph, callable_metrics, dispatcher_classes, mod_name, thresholds
+        )
         for mod_name in sorted(index.modules)
     ]
     return MetricsReport(
@@ -77,7 +110,8 @@ def analyze_path(root: Path) -> MetricsReport:
             "files_analyzed": len(parsed),
             "files_skipped": [{"path": str(s.path), "reason": s.reason} for s in skipped],
         },
-        overall=_overall(modules_out, callable_metrics, index, import_graph),
+        thresholds=thresholds.to_dict(),
+        overall=_overall(modules_out, callable_metrics, index, import_graph, thresholds),
         modules=modules_out,
     )
 
@@ -101,6 +135,7 @@ def _score_callable(
     call_graph: CallGraph,
     override_sets: dict,
     call_costs: dict[str, list[int]],
+    dispatcher_classes: set[str],
     qname: str,
     info: CallableInfo,
 ) -> CallableMetrics:
@@ -139,7 +174,12 @@ def _score_callable(
         call_count=expr.call_count,
         assign_count=expr.assign_count,
     )
-    return CallableMetrics(
+    dispatch_exempt = bool(
+        info.class_qname
+        and info.class_qname in dispatcher_classes
+        and is_dispatch_method_name(info.name)
+    )
+    metrics = CallableMetrics(
         name=info.name,
         qualified_name=qname,
         kind=info.kind,  # type: ignore[arg-type]
@@ -168,7 +208,11 @@ def _score_callable(
         call_count=expr.call_count,
         local_stores=expr.local_stores,
         comprehension_count=expr.comprehension_count,
+        dispatch_exempt=dispatch_exempt,
     )
+    metrics.reduction_like = is_reduction_like(metrics)
+    metrics.unpaid = is_unpaid(metrics)
+    return metrics
 
 
 def _module_report(
@@ -176,7 +220,9 @@ def _module_report(
     index: SymbolIndex,
     import_graph: ImportGraph,
     callable_metrics: dict[str, CallableMetrics],
+    dispatcher_classes: set[str],
     mod_name: str,
+    thresholds: Thresholds,
 ) -> ModuleReport:
     mi = index.modules[mod_name]
     try:
@@ -204,6 +250,7 @@ def _module_report(
         ]
         method_ccs = {m.name: m.cyclomatic for m in method_cms}
         lcom4, nom, _ = compute_lcom4(ci.node)
+        is_dispatch = cq in dispatcher_classes
         classes_out.append(
             ClassMetrics(
                 name=ci.name,
@@ -212,6 +259,8 @@ def _module_report(
                 lcom4=lcom4,
                 wmc=compute_wmc(method_ccs) if method_ccs else 0,
                 nom=nom,
+                dispatch_class=is_dispatch,
+                lcom4_gate_exempt=is_dispatch,
                 methods=sorted(method_cms, key=lambda m: m.lineno),
             )
         )
@@ -219,7 +268,7 @@ def _module_report(
     return ModuleReport(
         path=rel_path,
         name=mod_name,
-        metrics=_rollup(all_callables, class_count=len(classes_out)),
+        metrics=_rollup(all_callables, class_count=len(classes_out), thresholds=thresholds),
         imports=sorted(import_graph.edges.get(mod_name, ())),
         scc_id=import_graph.scc_of.get(mod_name),
         functions=functions,
@@ -227,11 +276,15 @@ def _module_report(
     )
 
 
-def _rollup(callables: list[CallableMetrics], class_count: int) -> ModuleRollup:
+def _rollup(
+    callables: list[CallableMetrics],
+    class_count: int,
+    thresholds: Thresholds,
+) -> ModuleRollup:
     n = len(callables)
     if n == 0:
         return ModuleRollup(class_count=class_count)
-    stats = _callable_stats(callables)
+    stats = _callable_stats(callables, thresholds)
     return ModuleRollup(
         callable_count=n,
         class_count=class_count,
@@ -244,6 +297,11 @@ def _rollup(callables: list[CallableMetrics], class_count: int) -> ModuleRollup:
         mean_cognitive=stats["mean_cognitive"],
         mean_car=stats["mean_car"],
         mean_lmd=stats["mean_lmd"],
+        n_v_poly_gt_15=stats["n_v_poly_gt_15"],
+        n_nesting_gt_3=stats["n_nesting_gt_3"],
+        n_unpaid_v_poly_gt_15=stats["n_unpaid_v_poly_gt_15"],
+        n_unpaid_nesting_gt_3=stats["n_unpaid_nesting_gt_3"],
+        n_unpaid_hotspots=stats["n_unpaid_hotspots"],
         roles=stats["roles"],
     )
 
@@ -253,6 +311,7 @@ def _overall(
     callable_metrics: dict[str, CallableMetrics],
     index: SymbolIndex,
     import_graph: ImportGraph,
+    thresholds: Thresholds,
 ) -> OverallReport:
     all_c = list(callable_metrics.values())
     overall = OverallReport(
@@ -270,42 +329,105 @@ def _overall(
     )
     if not all_c:
         return overall
-    stats = _callable_stats(all_c)
+    stats = _callable_stats(all_c, thresholds)
     overall.roles = stats["roles"]
     overall.complexity = {
         "max_v_poly": stats["max_v_poly"],
         "max_nesting": stats["max_nesting"],
         "mean_cyclomatic": stats["mean_cyclomatic"],
         "mean_cognitive": stats["mean_cognitive"],
+        "n_v_poly_gt_15": stats["n_v_poly_gt_15"],
+        "n_nesting_gt_3": stats["n_nesting_gt_3"],
+        "n_unpaid_v_poly_gt_15": stats["n_unpaid_v_poly_gt_15"],
+        "n_unpaid_nesting_gt_3": stats["n_unpaid_nesting_gt_3"],
+        "n_unpaid_hotspots": stats["n_unpaid_hotspots"],
     }
     overall.etspa = {
         "sum_S": stats["sum_S"],
         "frac_S_le_0": stats["frac_S_le_0"],
         "frac_fan_in_le_1": stats["frac_fan_in_le_1"],
+        "note": "Global fracs mix leaves+helpers; prefer helpers_cores for gates.",
+        "helpers_cores": stats["helpers_cores_etspa"],
     }
     overall.expression = {
         "mean_car": stats["mean_car"],
         "mean_lmd": stats["mean_lmd"],
-        "mean_cvr": sum(c.cvr for c in all_c) / len(all_c),
+        "mean_cvr": stats["mean_cvr"],
+        "leaves": stats["leaves_expression"],
     }
+    overall.hotspots = stats["hotspots"]
     return overall
 
 
-def _callable_stats(callables: list[CallableMetrics]) -> _CallableStats:
-    """Shared module/overall aggregates over scored callables."""
+def _callable_stats(callables: list[CallableMetrics], thresholds: Thresholds) -> _CallableStats:
+    """Shared module/overall aggregates over scored callables (single pass)."""
     n = len(callables)
     roles = {"core": 0, "leaf": 0, "helper": 0}
+    v_gate = thresholds.v_poly_lenient
+    nest_gate = thresholds.nesting_depth
+
+    sum_S = sum_cyc = sum_cog = sum_car = sum_lmd = sum_cvr = 0.0
+    n_s_le_0 = n_f_le_1 = 0
+    max_v = max_n = 0
+    n_v = n_nest = n_unpaid_v = n_unpaid_nest = 0
+    helper_core: list[CallableMetrics] = []
+    leaves: list[CallableMetrics] = []
+    hotspot_cms: list[CallableMetrics] = []
+
     for c in callables:
         roles[c.role] = roles.get(c.role, 0) + 1
+        sum_S += c.S
+        sum_cyc += c.cyclomatic
+        sum_cog += c.cognitive
+        sum_car += c.car
+        sum_lmd += c.lmd
+        sum_cvr += c.cvr
+        if c.S <= 0:
+            n_s_le_0 += 1
+        if c.fan_in_ext <= 1:
+            n_f_le_1 += 1
+        if c.v_poly > max_v:
+            max_v = c.v_poly
+        if c.max_nesting > max_n:
+            max_n = c.max_nesting
+        over_v = c.v_poly > v_gate
+        over_n = c.max_nesting > nest_gate
+        if over_v:
+            n_v += 1
+        if over_n:
+            n_nest += 1
+        if c.unpaid and over_v:
+            n_unpaid_v += 1
+        if c.unpaid and over_n:
+            n_unpaid_nest += 1
+        if c.role == "leaf":
+            leaves.append(c)
+        elif not c.dispatch_exempt:
+            helper_core.append(c)
+        if is_hotspot(c, thresholds):
+            hotspot_cms.append(c)
+
+    hotspot_cms.sort(key=lambda c: (-c.v_poly, -c.cognitive, -c.max_nesting, c.qualified_name))
+    hotspot_dicts = [hotspot_entry(c) for c in hotspot_cms]
+
     return {
-        "sum_S": sum(c.S for c in callables),
-        "frac_S_le_0": sum(1 for c in callables if c.S <= 0) / n,
-        "frac_fan_in_le_1": sum(1 for c in callables if c.fan_in_ext <= 1) / n,
-        "max_v_poly": max(c.v_poly for c in callables),
-        "max_nesting": max(c.max_nesting for c in callables),
-        "mean_cyclomatic": sum(c.cyclomatic for c in callables) / n,
-        "mean_cognitive": sum(c.cognitive for c in callables) / n,
-        "mean_car": sum(c.car for c in callables) / n,
-        "mean_lmd": sum(c.lmd for c in callables) / n,
+        "sum_S": sum_S,
+        "frac_S_le_0": n_s_le_0 / n,
+        "frac_fan_in_le_1": n_f_le_1 / n,
+        "max_v_poly": max_v,
+        "max_nesting": max_n,
+        "mean_cyclomatic": sum_cyc / n,
+        "mean_cognitive": sum_cog / n,
+        "mean_car": sum_car / n,
+        "mean_lmd": sum_lmd / n,
+        "n_v_poly_gt_15": n_v,
+        "n_nesting_gt_3": n_nest,
+        "n_unpaid_v_poly_gt_15": n_unpaid_v,
+        "n_unpaid_nesting_gt_3": n_unpaid_nest,
+        "n_unpaid_hotspots": len(hotspot_dicts),
         "roles": roles,
+        "hotspots": hotspot_dicts,
+        "helpers_cores_etspa": etspa_board(helper_core),
+        "leaves_expression": expression_board(leaves),
+        "mean_cvr": sum_cvr / n,
     }
