@@ -7,6 +7,8 @@ import io
 import tokenize
 from dataclasses import dataclass
 
+from py_code_metrics.astutil import strip_docstring_body
+
 DEFAULT_CALL_COST = 3.0
 
 
@@ -14,18 +16,6 @@ DEFAULT_CALL_COST = 3.0
 class TokenSplit:
     body_tokens: int
     header_tokens: int
-
-
-def _strip_docstring_body(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[ast.stmt]:
-    body = list(node.body)
-    if (
-        body
-        and isinstance(body[0], ast.Expr)
-        and isinstance(body[0].value, ast.Constant)
-        and isinstance(body[0].value.value, str)
-    ):
-        return body[1:]
-    return body
 
 
 def count_tokens_in_source(source: str) -> int:
@@ -69,7 +59,7 @@ def header_token_count(
 
 
 def body_token_count(node: ast.FunctionDef | ast.AsyncFunctionDef, source_lines: list[str]) -> int:
-    body = _strip_docstring_body(node)
+    body = strip_docstring_body(node)
     if not body:
         return 0
     start = body[0].lineno - 1
@@ -78,24 +68,22 @@ def body_token_count(node: ast.FunctionDef | ast.AsyncFunctionDef, source_lines:
 
 
 def is_trivial_body(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
-    body = _strip_docstring_body(node)
+    body = strip_docstring_body(node)
     if not body:
         return True
-    if len(body) == 1:
-        stmt = body[0]
-        if isinstance(stmt, ast.Pass):
-            return True
-        if (
-            isinstance(stmt, ast.Expr)
-            and isinstance(stmt.value, ast.Constant)
-            and stmt.value.value is ...
-        ):
-            return True
-        if isinstance(stmt, ast.Return):
-            if stmt.value is None:
-                return True
-            if isinstance(stmt.value, ast.Constant):
-                return True
+    if len(body) != 1:
+        return False
+    stmt = body[0]
+    if isinstance(stmt, ast.Pass):
+        return True
+    if (
+        isinstance(stmt, ast.Expr)
+        and isinstance(stmt.value, ast.Constant)
+        and stmt.value.value is ...
+    ):
+        return True
+    if isinstance(stmt, ast.Return):
+        return stmt.value is None or isinstance(stmt.value, ast.Constant)
     return False
 
 

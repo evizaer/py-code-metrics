@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+from itertools import combinations
 
 
 def _method_kind(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
@@ -99,11 +100,11 @@ def compute_lcom4(class_node: ast.ClassDef) -> tuple[int, int, dict[str, int]]:
     calls_by_method = {m.name: _methods_called_on_self(m) for m in methods}
 
     adj: dict[str, set[str]] = {n: set() for n in names}
-    for i, a in enumerate(names):
-        for b in names[i + 1 :]:
-            if attrs_by_method[a] & attrs_by_method[b]:
-                adj[a].add(b)
-                adj[b].add(a)
+    for a, b in combinations(names, 2):
+        if attrs_by_method[a] & attrs_by_method[b]:
+            adj[a].add(b)
+            adj[b].add(a)
+    for a in names:
         for callee in calls_by_method[a]:
             if callee in name_set:
                 adj[a].add(callee)

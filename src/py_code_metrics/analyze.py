@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TypedDict
 
 from py_code_metrics.discover import discover_python_files
 from py_code_metrics.metrics.call_graph import CallGraph, collect_calls_in_function
@@ -35,6 +36,19 @@ from py_code_metrics.resolve import (
     resolve_polymorphic_targets,
 )
 from py_code_metrics.roles import classify_role
+
+
+class _CallableStats(TypedDict):
+    sum_S: float
+    frac_S_le_0: float
+    frac_fan_in_le_1: float
+    max_v_poly: int
+    max_nesting: int
+    mean_cyclomatic: float
+    mean_cognitive: float
+    mean_car: float
+    mean_lmd: float
+    roles: dict[str, int]
 
 
 def analyze_path(root: Path) -> MetricsReport:
@@ -217,22 +231,20 @@ def _rollup(callables: list[CallableMetrics], class_count: int) -> ModuleRollup:
     n = len(callables)
     if n == 0:
         return ModuleRollup(class_count=class_count)
-    roles = {"core": 0, "leaf": 0, "helper": 0}
-    for c in callables:
-        roles[c.role] = roles.get(c.role, 0) + 1
+    stats = _callable_stats(callables)
     return ModuleRollup(
         callable_count=n,
         class_count=class_count,
-        sum_S=sum(c.S for c in callables),
-        frac_S_le_0=sum(1 for c in callables if c.S <= 0) / n,
-        frac_fan_in_le_1=sum(1 for c in callables if c.fan_in_ext <= 1) / n,
-        max_v_poly=max(c.v_poly for c in callables),
-        max_nesting=max(c.max_nesting for c in callables),
-        mean_cyclomatic=sum(c.cyclomatic for c in callables) / n,
-        mean_cognitive=sum(c.cognitive for c in callables) / n,
-        mean_car=sum(c.car for c in callables) / n,
-        mean_lmd=sum(c.lmd for c in callables) / n,
-        roles=roles,
+        sum_S=stats["sum_S"],
+        frac_S_le_0=stats["frac_S_le_0"],
+        frac_fan_in_le_1=stats["frac_fan_in_le_1"],
+        max_v_poly=stats["max_v_poly"],
+        max_nesting=stats["max_nesting"],
+        mean_cyclomatic=stats["mean_cyclomatic"],
+        mean_cognitive=stats["mean_cognitive"],
+        mean_car=stats["mean_car"],
+        mean_lmd=stats["mean_lmd"],
+        roles=stats["roles"],
     )
 
 
@@ -243,11 +255,6 @@ def _overall(
     import_graph: ImportGraph,
 ) -> OverallReport:
     all_c = list(callable_metrics.values())
-    n = len(all_c)
-    roles = {"core": 0, "leaf": 0, "helper": 0}
-    for c in all_c:
-        roles[c.role] = roles.get(c.role, 0) + 1
-
     overall = OverallReport(
         totals={
             "modules": len(modules),
@@ -255,29 +262,50 @@ def _overall(
             "functions": sum(1 for c in all_c if c.kind in {"function", "nested_function"}),
             "methods": sum(1 for c in all_c if c.kind in {"method", "classmethod", "staticmethod"}),
         },
-        roles=roles,
         imports={
             "edge_count": import_graph.edge_count,
             "cycle_count": len(import_graph.cycles),
             "cycles": import_graph.cycles,
         },
     )
-    if not n:
+    if not all_c:
         return overall
+    stats = _callable_stats(all_c)
+    overall.roles = stats["roles"]
     overall.complexity = {
-        "max_v_poly": max(c.v_poly for c in all_c),
-        "max_nesting": max(c.max_nesting for c in all_c),
-        "mean_cyclomatic": sum(c.cyclomatic for c in all_c) / n,
-        "mean_cognitive": sum(c.cognitive for c in all_c) / n,
+        "max_v_poly": stats["max_v_poly"],
+        "max_nesting": stats["max_nesting"],
+        "mean_cyclomatic": stats["mean_cyclomatic"],
+        "mean_cognitive": stats["mean_cognitive"],
     }
     overall.etspa = {
-        "sum_S": sum(c.S for c in all_c),
-        "frac_S_le_0": sum(1 for c in all_c if c.S <= 0) / n,
-        "frac_fan_in_le_1": sum(1 for c in all_c if c.fan_in_ext <= 1) / n,
+        "sum_S": stats["sum_S"],
+        "frac_S_le_0": stats["frac_S_le_0"],
+        "frac_fan_in_le_1": stats["frac_fan_in_le_1"],
     }
     overall.expression = {
-        "mean_car": sum(c.car for c in all_c) / n,
-        "mean_lmd": sum(c.lmd for c in all_c) / n,
-        "mean_cvr": sum(c.cvr for c in all_c) / n,
+        "mean_car": stats["mean_car"],
+        "mean_lmd": stats["mean_lmd"],
+        "mean_cvr": sum(c.cvr for c in all_c) / len(all_c),
     }
     return overall
+
+
+def _callable_stats(callables: list[CallableMetrics]) -> _CallableStats:
+    """Shared module/overall aggregates over scored callables."""
+    n = len(callables)
+    roles = {"core": 0, "leaf": 0, "helper": 0}
+    for c in callables:
+        roles[c.role] = roles.get(c.role, 0) + 1
+    return {
+        "sum_S": sum(c.S for c in callables),
+        "frac_S_le_0": sum(1 for c in callables if c.S <= 0) / n,
+        "frac_fan_in_le_1": sum(1 for c in callables if c.fan_in_ext <= 1) / n,
+        "max_v_poly": max(c.v_poly for c in callables),
+        "max_nesting": max(c.max_nesting for c in callables),
+        "mean_cyclomatic": sum(c.cyclomatic for c in callables) / n,
+        "mean_cognitive": sum(c.cognitive for c in callables) / n,
+        "mean_car": sum(c.car for c in callables) / n,
+        "mean_lmd": sum(c.lmd for c in callables) / n,
+        "roles": roles,
+    }

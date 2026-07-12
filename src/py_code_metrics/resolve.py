@@ -335,16 +335,13 @@ def resolve_call(
             if candidate in index.callables:
                 return candidate
             return _find_method_in_hierarchy(index, caller.class_qname, attr)
-
         if receiver in mi.local_names:
             target = mi.local_names[receiver]
-            if target in index.classes:
-                candidate = f"{target}.{attr}"
-                if candidate in index.callables:
-                    return candidate
-            mod_candidate = f"{target}.{attr}"
-            if mod_candidate in index.callables:
-                return mod_candidate
+            class_cand = f"{target}.{attr}"
+            if target in index.classes and class_cand in index.callables:
+                return class_cand
+            if class_cand in index.callables:
+                return class_cand
             hit = _lookup_imported_callable(index, target, attr)
             if hit:
                 return hit

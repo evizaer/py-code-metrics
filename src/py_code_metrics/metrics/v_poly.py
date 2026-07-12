@@ -34,17 +34,17 @@ def build_override_index(
     Map (class_qname, method_name) → set of classes implementing that method
     in related hierarchies (shared ancestry).
     """
-    defined: dict[str, set[str]] = {}
-    for qname, node in classes.items():
-        defined[qname] = {
+    defined: dict[str, set[str]] = {
+        qname: {
             stmt.name
             for stmt in node.body
             if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef))
         }
+        for qname, node in classes.items()
+    }
 
     cache: dict[str, list[str]] = {}
-    for qname in classes:
-        _ancestry(qname, bases_resolved, cache)
+    anc_sets = {qname: set(_ancestry(qname, bases_resolved, cache)) for qname in classes}
 
     by_method: dict[str, set[str]] = defaultdict(set)
     for qname, methods in defined.items():
@@ -58,10 +58,7 @@ def build_override_index(
                 override_sets[(d, method)] = {d}
             continue
         for d in definers:
-            d_anc = set(_ancestry(d, bases_resolved, cache))
-            related = {
-                other for other in definers if d_anc & set(_ancestry(other, bases_resolved, cache))
-            }
+            related = {other for other in definers if anc_sets[d] & anc_sets[other]}
             override_sets[(d, method)] = related or {d}
 
     return override_sets

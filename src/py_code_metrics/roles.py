@@ -34,6 +34,4 @@ def classify_role(
         return "leaf"
     if fan_in_ext <= 1 and car >= 1.5:
         return "leaf"
-    if fan_in_ext <= 1:
-        return "helper"
     return "helper"
