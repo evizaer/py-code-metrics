@@ -8,7 +8,7 @@ Target corpus: `src/py_code_metrics` (the tool analyzing itself).
 | --- | --- | --- | --- |
 | 1 | pre-`1446e9b` refactors (CS1–CS2) | `/tmp/pcm-baseline.json` → `/tmp/pcm-after2.json` | Flatten hotspots; roll back unpaid F=1 |
 | 2 | `add5082` (P0 tests) + `1446e9b` (CS3) | `/tmp/pcm-self-before.json` → `/tmp/pcm-iter-final.json` | Oracle cleanup; paid extracts; stop rule |
-| 3 | dashboard hardening (worktree; **commit TBD**) | `/tmp/pcm-round3-before.json` → `/tmp/pcm-round3-after.json` | Implements Round 2 product feedback |
+| 3 | `5ee2701` (dashboard hardening) | `/tmp/pcm-round3-before.json` → `/tmp/pcm-round3-after.json` | Implements Round 2 product feedback |
 
 ### Feedback tracker (Round 2 → status)
 
@@ -248,7 +248,7 @@ The suite **successfully** (1) caught P0’s oracle spaghetti, (2) steered clean
 ## Round 3 — dashboard hardening (addresses F1–F6)
 
 **Changeset:** implement `test-quality-metrics.md` §11 (product feedback from Round 2).  
-**Commit:** TBD (fill SHA when landed). Base HEAD at start: `1446e9b`.  
+**Commit:** `5ee2701`. Base HEAD at start: `1446e9b`.  
 **Files:** `dashboard.py` (new), `model.py`, `analyze.py`, `scripts/compare_self_metrics.py`, `README.md`, tests/fixtures under `dashboard_pkg/`.  
 **Snapshots:** `/tmp/pcm-round3-before.json` (post-R2 corpus, old report shape) → `/tmp/pcm-round3-after.json`.
 
