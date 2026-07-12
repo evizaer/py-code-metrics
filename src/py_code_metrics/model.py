@@ -187,3 +187,106 @@ class MetricsReport:
             "overall": self.overall.to_dict(),
             "modules": [m.to_dict() for m in self.modules],
         }
+
+
+OracleTier = Literal["none", "weak", "strong"]
+TestFramework = Literal["pytest", "unittest", "unknown"]
+Severity = Literal["high", "low", "info"]
+
+
+@dataclass
+class TestCaseMetrics:
+    name: str
+    qualified_name: str
+    lineno: int
+    file: str
+    framework: TestFramework = "unknown"
+    assertion_count: int = 0
+    oracle_tier: OracleTier = "none"
+    oracle_kinds: list[str] = field(default_factory=list)
+    smell_codes: list[str] = field(default_factory=list)
+    severity: Severity = "info"
+    markers: list[str] = field(default_factory=list)
+    exempt: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class TestModuleRollup:
+    test_count: int = 0
+    frac_oracle_none: float = 0.0
+    frac_oracle_weak: float = 0.0
+    frac_oracle_strong: float = 0.0
+    mean_assertion_density: float = 0.0
+    high_severity_count: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class TestModuleReport:
+    path: str
+    name: str
+    metrics: TestModuleRollup = field(default_factory=TestModuleRollup)
+    tests: list[TestCaseMetrics] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "path": self.path,
+            "name": self.name,
+            "metrics": self.metrics.to_dict(),
+            "tests": [t.to_dict() for t in self.tests],
+        }
+
+
+@dataclass
+class TestOverallReport:
+    test_count: int = 0
+    module_count: int = 0
+    frac_oracle_none: float = 0.0
+    frac_oracle_weak: float = 0.0
+    frac_oracle_strong: float = 0.0
+    mean_assertion_density: float = 0.0
+    high_severity_count: int = 0
+    high_severity_findings: list[dict[str, Any]] = field(default_factory=list)
+    oracle_histogram: dict[str, int] = field(
+        default_factory=lambda: {"none": 0, "weak": 0, "strong": 0}
+    )
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class TestMetricsReport:
+    version: int = 1
+    tool: str = "py-code-metrics"
+    mode: str = "tests"
+    input: dict[str, Any] = field(default_factory=dict)
+    thresholds: dict[str, Any] = field(
+        default_factory=lambda: {
+            "frac_oracle_none_warn": 0.10,
+            "prefer_strong_majority": True,
+            "no_oracle": "high",
+            "tautology": "high",
+            "weak_oracle": "low",
+            "swallowed_error": "high",
+            "empty_body": "high",
+        }
+    )
+    overall: TestOverallReport = field(default_factory=TestOverallReport)
+    modules: list[TestModuleReport] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "version": self.version,
+            "tool": self.tool,
+            "mode": self.mode,
+            "input": self.input,
+            "thresholds": self.thresholds,
+            "overall": self.overall.to_dict(),
+            "modules": [m.to_dict() for m in self.modules],
+        }

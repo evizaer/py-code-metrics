@@ -39,3 +39,17 @@ def discover_python_files(root: Path) -> list[Path]:
             continue
         files.append(path)
     return sorted(files)
+
+
+def is_test_file(path: Path) -> bool:
+    """True for pytest/unittest-style test module names."""
+    name = path.name
+    if not name.endswith(".py") or name == "__init__.py":
+        return False
+    stem = path.stem
+    return stem.startswith("test_") or stem.endswith("_test")
+
+
+def discover_tests(root: Path) -> list[Path]:
+    """Return sorted test module paths under *root* (`test_*.py` / `*_test.py`)."""
+    return [p for p in discover_python_files(root) if is_test_file(p)]

@@ -28,6 +28,7 @@ packages = ["src/py_code_metrics"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+norecursedirs = ["fixtures", ".*", "build", "dist", "*.egg"]
 
 [tool.ruff]
 target-version = "py310"
