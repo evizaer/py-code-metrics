@@ -31,8 +31,12 @@ Copy and track:
 - [ ] 2. Implement (smallest change that fits existing style)
 - [ ] 3. Remeasure + gate
 - [ ] 4. Keep, tweak, or roll back
-- [ ] 5. Test-quality pass (when behavior or tests changed)
+- [ ] 5. Stop-annotate or escalate design problems
+- [ ] 6. Test-quality pass (when behavior or tests changed)
 ```
+
+Design escalation detail: project's `docs/design-feedback.md` when present
+(taxonomy, packet, attempt budget).
 
 ### 1. Baseline
 
@@ -91,9 +95,58 @@ gate; still run the project's tests, then the **Test-quality pass** below.
 | Gate PASS + board stable/better | Keep |
 | Local `v_poly` win via **F=1 S≤0** extract | **Inline** the extract |
 | Paid core (F≥2, S≫0) now “looks hot” on raw v_poly | **Leave it** — not a hotspot under unpaid predicate |
-| Only fix left is design-level | Stop; do not dust-shard |
+| Only fix left is design-level | **Escalate** (packet) and stop local edits; do not dust-shard or redesign without human choice |
 
-### 5. Test-quality pass
+### 5. Stop-annotate or escalate design problems
+
+After step 4, if unpaid hotspots remain that **blocked the task** or a campaign
+stop rule fired, classify each relevant symbol and hand off — do not keep
+dust-sharding or invent a redesign.
+
+| Class | Escalate? | Agent action |
+| --- | --- | --- |
+| **Design-bound** | Yes | Emit escalation packet; pause redesign until human decides |
+| **Inherent** | No | Leave alone; brief stop note (visitor/Tarjan/reduction_like/intentional leaf vocab) |
+| **Already paid** | No | Do not “fix”; if still in unpaid `hotspots`, treat as metric bug → dogfood feedback on this repo |
+| **Blocked by scope** | Yes | Packet lists out-of-scope move; do not expand scope unilaterally |
+| **Tactics exhausted, ambiguous** | Yes (soft) | Escalate with evidence; ask which fork |
+
+**Attempt budget before escalating:** small production edit — at most one honest
+local pass after a gate fail; hotspot campaign — flatten and/or one paid extract
+per hotspot, then classify; ambiguous — soft escalate after two failed local
+approaches. Escalation is a success mode (correct stop), not agent failure.
+
+Skip this step when the gate PASSed and the user’s goal is fully met, even if
+unrelated baseline hotspots remain.
+
+**Escalation packet** (required in the agent reply when escalating):
+
+```text
+## Design escalation
+
+**Blocked goal:** <what the user asked that cannot finish via local edits>
+**Class:** design-bound | scope | ambiguous
+**Primary symbols:** <qualified_name> (path) — key metrics: v_poly / nest / cog / F / S / unpaid
+**Tried locally:** <1–3 bullets: flatten / extract / rollback>
+**Why local won’t pay:** <one short paragraph>
+**Design forks (options, not a plan):**
+  1. …
+  2. …
+  3. leave as accepted debt
+**Ask:** <single decision question for the human>
+**Evidence (optional CLI):** diff / hotspots / symbol ids only — no full snapshot
+```
+
+Rules: two or three forks max; one ask; metrics as evidence not verdict; no
+drive-by redesign until the human answers. On this repo, optionally log a
+one-liner in `docs/metrics-iteration-log.md` when self-analysis stops on
+design-bound symbols — that does not replace the human ask.
+
+**vs dogfood:** this skill escalates **code design** problems. Metric false debt /
+Goodhart on `src/py_code_metrics` goes to `metrics-dogfood-reflect`. If both
+apply, file both.
+
+### 6. Test-quality pass
 
 Run whenever you added/changed production behavior **or** tests. Skills own
 judgment; `tests` emits findings. See [reference.md](reference.md) for the
@@ -189,9 +242,11 @@ Do **not** treat high `statements` / token counts as a reason to split when thos
 
 Stop iterating when every remaining top unpaid hotspot is one of:
 
-1. **Design-bound** (needs a different algorithm/architecture),
-2. **Inherent** (graph algorithms, visitor dispatch, etc.), or
-3. **Already paid** (should not appear in `hotspots`).
+1. **Design-bound** (needs a different algorithm/architecture) — **escalate**
+   with a packet when it blocks the current goal (not only a quiet stop),
+2. **Inherent** (graph algorithms, visitor dispatch, etc.) — stop-annotate,
+3. **Already paid** (should not appear in `hotspots`) — stop-annotate; metric
+   bug if still listed unpaid.
 
 For tests: stop when high smells are gone on touched tests, strong oracles
 cover behavioral symbols you changed, and (if you ran mutation) remaining
@@ -208,6 +263,7 @@ survivors are equivalent/low-value or explicitly deferred—not ignored green ba
 
 ## References
 
-- Extract decision tree, test-oracle mill, board axes: [reference.md](reference.md)
+- Extract decision tree, escalate-vs-continue, test-oracle mill: [reference.md](reference.md)
+- Design escalation (full taxonomy / detection): `docs/design-feedback.md` when present
 - Metric meanings: project README / `docs/metrics.md` when present
-- Agent CLI workflows (Workflow 3): `docs/agent-cli-workflows.md` when present
+- Agent CLI workflows: `docs/agent-cli-workflows.md` when present

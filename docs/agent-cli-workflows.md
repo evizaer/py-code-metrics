@@ -2,7 +2,7 @@
 
 Target CLI surface for agents doing development work. Goal: tight baseline → edit → remeasure loops with **small, stable JSON** and **exit codes as policy**. Full hierarchical reports remain available for humans and archival; agents should almost never ingest them whole.
 
-Companion docs: [metrics.md](metrics.md) (signal semantics), [metrics-iteration-log.md](metrics-iteration-log.md) (how metrics guided or misled — not a feature changelog), `.cursor/skills/metrics-guided-implement/` (procedural Goodhart rules for any project), `.cursor/skills/metrics-dogfood-reflect/` (self-analysis + causal reflection for this repo).
+Companion docs: [metrics.md](metrics.md) (signal semantics), [metrics-iteration-log.md](metrics-iteration-log.md) (how metrics guided or misled — not a feature changelog), [design-feedback.md](design-feedback.md) (design-problem escalation), `.cursor/skills/metrics-guided-implement/` (procedural Goodhart rules for any project), `.cursor/skills/metrics-dogfood-reflect/` (self-analysis + causal reflection for this repo).
 
 ---
 
@@ -46,7 +46,7 @@ Shared filters (all structural views):
 **When.** Any non-trivial `src/` change. Highest frequency; optimize this first.
 
 ```text
-baseline → implement → remeasure + gate → keep / tweak / rollback → (optional) causal log
+baseline → implement → remeasure + gate → keep / tweak / rollback → escalate or stop-annotate → (optional) causal log
 ```
 
 On this repo, when you log: record **metrics-caused** moves and misleads
@@ -70,6 +70,19 @@ py-code-metrics hotspots -f /tmp/pcm-after.json
 py-code-metrics board -f /tmp/pcm-after.json
 py-code-metrics symbol -f /tmp/pcm-after.json some.module.fn
 ```
+
+### Design-bound stop → escalate
+
+When local tactics are exhausted and remaining unpaid hotspots are
+**design-bound**, **scope-blocked**, or still **ambiguous**, the skill
+**escalates to the human** (short packet with one ask) and stops local
+edits — it does not dust-shard, silent-stop while the goal is incomplete, or
+redesign without consent. Inherent / already-paid cases get a brief
+stop-annotate only.
+
+The CLI still only **measures** (`diff` / `hotspots` / `symbol` as evidence).
+There is no “design fail” exit code; judgment stays in
+`metrics-guided-implement` ([design-feedback.md](design-feedback.md)).
 
 ### Efficiency rules
 
@@ -109,6 +122,9 @@ py-code-metrics diff /tmp/pcm-before.json /tmp/pcm-after.json --json
 
 - One hotspot per iteration when possible; remeasure after each keep/tweak.
 - Stop when remaining top hotspots are design-bound, inherent (visitor/Tarjan), or already paid (should not appear in the unpaid list).
+- On **design-bound** (or scope / ambiguous after the attempt budget): **escalate**
+  with a skill packet and stop that hotspot — do not Strategy-split or keep
+  unpaid extracts. CLI still only measures; see [design-feedback.md](design-feedback.md).
 - Do not chase raw high `v_poly` on paid cores (`unpaid=false`).
 
 ### Payload focus

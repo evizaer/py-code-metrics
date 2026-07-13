@@ -1,8 +1,10 @@
 # Design problem escalation (generic implement skill)
 
-**Status.** Design proposal — not yet wired into `.cursor/skills/metrics-guided-implement/`.  
+**Status.** Shipped in `.cursor/skills/metrics-guided-implement/` (step 5 +
+reference escalate tree) and Workflow 1/2 notes in [agent-cli-workflows.md](agent-cli-workflows.md).
+P2 optional “accepted design debt” project list still open.  
 **Companion.** [agent-cli-workflows.md](agent-cli-workflows.md) (measure/gate), [metrics-guided-implement](../.cursor/skills/metrics-guided-implement/SKILL.md) (edit loop), [metrics-dogfood-reflect](../.cursor/skills/metrics-dogfood-reflect/SKILL.md) (this-repo metric product feedback).  
-**TODO origin.** `docs/TODO.md` — mechanism for identifying and raising design problems to the human.
+**TODO origin.** Was `docs/TODO.md` RDP — cleared; this doc is the canonical design.
 
 ---
 
@@ -159,60 +161,26 @@ Rules for the packet:
 
 ---
 
-## Skill integration (proposed edit to `metrics-guided-implement`)
+## Skill integration (`metrics-guided-implement`)
 
-Extend the workflow checklist:
+Landed as workflow steps 5–6 (escalate, then test-quality). Canonical copy:
+skill step 5 + reference “Escalate vs continue”. Summary:
 
-```
-- [ ] 1. Baseline
-- [ ] 2. Implement (smallest change that fits existing style)
-- [ ] 3. Remeasure + gate
-- [ ] 4. Keep, tweak, or roll back
-- [ ] 5. Stop-annotate or escalate design problems
-```
+1. Classify remaining blocked hotspots (taxonomy above).
+2. **Inherent / already paid** → stop-annotate; do not escalate.
+3. **Design-bound / scope / ambiguous** → escalation packet; stop local iteration.
+4. Skip when gate PASSed and the goal is fully met (unrelated baseline hotspots OK).
 
-### Step 5 — Stop-annotate or escalate
-
-After step 4, if unpaid hotspots remain that blocked the task or a campaign stop rule fired:
-
-1. Classify each relevant symbol (taxonomy above).
-2. **Inherent / already paid** → brief stop note in the reply; do not escalate.
-3. **Design-bound / scope / ambiguous** → emit the escalation packet; **do not** continue local iteration on those symbols.
-4. If the gate PASSed and the user’s goal is fully met, skip step 5 even if unrelated baseline hotspots remain.
-
-Update the stopping rule text so “design-bound” **implies escalation when it blocks the current goal**, not only quiet stop.
-
-Update “Only fix left is design-level → Stop; do not dust-shard” to:
-
-> Only fix left is design-level → **Escalate** (packet) and stop local edits; do not dust-shard or redesign without human choice.
-
-### Reference.md addition
-
-Add a short “Escalate vs continue” decision tree next to the extract tree:
-
-```
-Gate fail or hotspot still unpaid after local tactics?
-  ├─ Inherent / paid / false debt? → leave; stop-annotate
-  ├─ Extract would be F=1 S≤0 or branch relocation? → inline; if goal blocked → escalate
-  ├─ Needs new API / algorithm / boundary? → escalate (design-bound)
-  ├─ Fix clear but out of allowed scope? → escalate (scope)
-  └─ Unsure after attempt budget? → escalate (ambiguous)
-```
-
-### Dogfood skill boundary
-
-- **metrics-guided-implement** — escalates **code design** problems to the human for any project.
-- **metrics-dogfood-reflect** — records **metric product** feedback when the tool misled, missed debt, or rewarded Goodhart on `src/py_code_metrics`.
-
-If an escalation reveals a measurement lie (e.g. paid core still in hotspots), file both: design packet to the human if needed, and metrics feedback in the iteration log.
-
+**Dogfood boundary:** implement escalates **code design**; dogfood-reflect records
+**metric product** feedback on this repo. File both when a measurement lie and a
+design block coexist.
 ---
 
 ## Optional CLI support (later, not required to ship skill text)
 
 | Idea | Purpose | Priority |
 | --- | --- | --- |
-| Document stop classes in skill only | Unblocks escalation without schema work | **P0** |
+| Document stop classes in skill only | Unblocks escalation without schema work | **Done (P0)** |
 | `hotspots` entries include prior human tags if present in a project file | Avoid re-discovering known design-bound symbols | P2 |
 | Agent view `diff` / `hotspots` stay evidence-only | Preserve “skills own judgment” | — |
 | Exit code for “design escalation needed” | Rejected — conflates measurement with product decision | Non-goal |
@@ -250,9 +218,9 @@ From the iteration log: `resolve.resolve_call` remained unpaid and complex after
 
 ## Implementation plan
 
-1. **P0 — Skill text** — Add step 5, taxonomy, packet template, and escalate-vs-continue tree to `metrics-guided-implement` (+ reference.md). Point at this doc.
-2. **P0 — Workflow doc** — One subsection in [agent-cli-workflows.md](agent-cli-workflows.md) Workflow 1/2: “on design-bound stop, escalate; CLI still only measures.”
-3. **P1 — Clear TODO** — Replace the one-liner in `docs/TODO.md` with a link to this doc once the skill lands.
+1. ~~**P0 — Skill text**~~ — Done: step 5, taxonomy, packet template in `metrics-guided-implement`; escalate-vs-continue tree in reference.md.
+2. ~~**P0 — Workflow doc**~~ — Done: Workflow 1/2 escalate subsections in [agent-cli-workflows.md](agent-cli-workflows.md).
+3. ~~**P1 — Clear TODO**~~ — Done: RDP line in `docs/TODO.md` links here.
 4. **P2 — Optional** — Project-local “accepted design debt” list (qualified names + rationale) that the skill must read before campaigning, so known design-bound symbols escalate only when the user reopens them.
 
 ---

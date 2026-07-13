@@ -35,6 +35,25 @@ Need less nesting/cognitive in a leaf?
 “Reject all F=1” is too blunt. Reject **unpaid relocation**. Keep **named
 subproblems that cut a cognitive cliff** when the complementary board agrees.
 
+## Escalate vs continue
+
+```
+Gate fail or hotspot still unpaid after local tactics?
+  ├─ Inherent / paid / false debt? → leave; stop-annotate
+  ├─ Extract would be F=1 S≤0 or branch relocation? → inline; if goal blocked → escalate
+  ├─ Needs new API / algorithm / boundary? → escalate (design-bound)
+  ├─ Fix clear but out of allowed scope? → escalate (scope)
+  └─ Unsure after attempt budget? → escalate (ambiguous)
+```
+
+Escalate when the user’s goal still needs the design-bound area (or a campaign
+quality goal is blocked). Do **not** escalate merely because unpaid hotspots
+exist at baseline and the current change already gate-PASSes.
+
+Skills own this judgment; CLI `diff` / `hotspots` / `symbol` are evidence only
+— never invent a “design fail” exit code. Full packet template:
+`docs/design-feedback.md` when present, else the main skill’s step 5.
+
 ## Test-quality mill (survivors → better tests)
 
 ```
