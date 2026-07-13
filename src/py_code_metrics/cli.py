@@ -51,6 +51,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="With --tests: ingest coverage.py JSON (floors + optional contexts)",
     )
     parser.add_argument(
+        "--mutation",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="With --tests: ingest mutmut / Cosmic Ray / PCM mutation JSON",
+    )
+    parser.add_argument(
         "--delta",
         action="store_true",
         help="With --tests: filter findings to git-changed *.py paths",
@@ -105,10 +112,18 @@ def build_subcommand_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Snapshot test-quality report instead of structural",
     )
+    p_snap.add_argument("--coverage", type=Path, default=None, metavar="FILE")
+    p_snap.add_argument("--mutation", type=Path, default=None, metavar="FILE")
+    p_snap.add_argument(
+        "--delta",
+        action="store_true",
+        help="With --tests: filter findings to git-changed *.py paths",
+    )
 
     p_tests = sub.add_parser("tests", help="Test-quality findings (compact by default)")
     p_tests.add_argument("path", type=Path)
     p_tests.add_argument("--coverage", type=Path, default=None, metavar="FILE")
+    p_tests.add_argument("--mutation", type=Path, default=None, metavar="FILE")
     p_tests.add_argument(
         "--delta",
         action="store_true",
@@ -185,18 +200,29 @@ def _main_legacy(argv: list[str]) -> int:
     if args.coverage is not None and not args.tests:
         print("error: --coverage requires --tests", file=sys.stderr)
         return 2
+    if args.mutation is not None and not args.tests:
+        print("error: --mutation requires --tests", file=sys.stderr)
+        return 2
     if args.delta and not args.tests:
         print("error: --delta requires --tests", file=sys.stderr)
         return 2
     if args.coverage is not None and not args.coverage.exists():
         print(f"error: coverage file does not exist: {args.coverage}", file=sys.stderr)
         return 2
+    if args.mutation is not None and not args.mutation.exists():
+        print(f"error: mutation file does not exist: {args.mutation}", file=sys.stderr)
+        return 2
     if args.tests:
-        report = analyze_tests_path(
-            path,
-            coverage_path=args.coverage,
-            delta=args.delta,
-        )
+        try:
+            report = analyze_tests_path(
+                path,
+                coverage_path=args.coverage,
+                mutation_path=args.mutation,
+                delta=args.delta,
+            )
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
     else:
         report = analyze_path(path)
     sys.stdout.write(report_to_json(report, indent=args.indent))
@@ -244,7 +270,25 @@ def _cmd_snapshot(args: argparse.Namespace) -> int:
     if not path.exists():
         print(f"error: path does not exist: {path}", file=sys.stderr)
         return 2
-    report = analyze_tests_path(path) if args.tests else analyze_path(path)
+    if args.tests:
+        if args.coverage is not None and not args.coverage.exists():
+            print(f"error: coverage file does not exist: {args.coverage}", file=sys.stderr)
+            return 2
+        if args.mutation is not None and not args.mutation.exists():
+            print(f"error: mutation file does not exist: {args.mutation}", file=sys.stderr)
+            return 2
+        try:
+            report = analyze_tests_path(
+                path,
+                coverage_path=args.coverage,
+                mutation_path=args.mutation,
+                delta=args.delta,
+            )
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+    else:
+        report = analyze_path(path)
     text = report_to_json(report, indent=args.indent)
     try:
         args.output.write_text(text, encoding="utf-8")
@@ -336,11 +380,18 @@ def _load_or_analyze_tests(
         return None, f"error: path does not exist: {path}"
     if args.coverage is not None and not args.coverage.exists():
         return None, f"error: coverage file does not exist: {args.coverage}"
-    report = analyze_tests_path(
-        path,
-        coverage_path=args.coverage,
-        delta=args.delta,
-    )
+    mutation = getattr(args, "mutation", None)
+    if mutation is not None and not mutation.exists():
+        return None, f"error: mutation file does not exist: {mutation}"
+    try:
+        report = analyze_tests_path(
+            path,
+            coverage_path=args.coverage,
+            mutation_path=mutation,
+            delta=args.delta,
+        )
+    except ValueError as exc:
+        return None, f"error: {exc}"
     return report.to_dict(), None
 
 

@@ -443,6 +443,22 @@ Pytest marks, exemption flag, and framework hint (`pytest` / `unittest` / `unkno
 
 **Counter-balances.** Coverage floors and weak/none tests that merely import or touch a function.
 
+### `mutation_score` / `survivors` (optional `--mutation`)
+
+**What it means.** Ingested mutation campaign results. Supported shapes: PCM `py-code-metrics.mutation.v1` JSON, mutmut `mutmut-cicd-stats.json` (score-only), Cosmic Ray `dump` NDJSON/array (survivors with locations). Score is `killed / (killed + survived)`; timeouts/skipped excluded. Survivors may carry `overlap_flags` joining P1 coverage signals.
+
+**Why include it.** Gold-standard fault-detection power without embedding a mutation runner in the default path.
+
+**Counter-balances.** Coverage % and assertion counts that look healthy while mutants survive.
+
+### `mean_state_field_coverage` / `uncovered_state_fields` (always-on)
+
+**What it means.** Static Maguirre-style state-field coverage: share of SUT class field labels (plus iterable `field+` labels) referenced in oracle expressions, including one-hop reads inside production methods called from asserts. Reports uncovered labels for oracle improvement.
+
+**Why include it.** Mutation-correlated proxy that is cheap, static, and actionable when full mutation is offline.
+
+**Counter-balances.** Strong-looking equality asserts that only check return values and never inspect object state.
+
 ---
 
 ## Soft thresholds (emitted, not exit codes)
@@ -458,7 +474,7 @@ Pytest marks, exemption flag, and framework hint (`pytest` / `unittest` / `unkno
 | `statements` | 50 | Guidance |
 | `lcom4_max` | 1 | Guidance (skip dispatch classes) |
 
-**Test defaults:** `frac_oracle_none_warn`, smell severities, `prefer_strong_majority`.
+**Test defaults:** `frac_oracle_none_warn`, smell severities, `prefer_strong_majority`, `mutation_score_warn` (0.85), `unchecked_state_field`.
 
 Self-analysis gate script (`scripts/compare_self_metrics.py`) fails if `n_unpaid_hotspots` or `max_v_poly` rises between snapshots—see README and `docs/metrics-iteration-log.md`.
 
@@ -466,4 +482,4 @@ Self-analysis gate script (`scripts/compare_self_metrics.py`) fails if `n_unpaid
 
 ## Not yet implemented
 
-Deferred from research notes (not in the current report): TCC, CBO, ATFD, God Class, RFC′, Martin package metrics, Halstead/ABC, layer contracts, mutation score ingest (P2), and enforced CI exit codes beyond the optional self-compare script.
+Deferred from research notes (not in the current report): TCC, CBO, ATFD, God Class, RFC′, Martin package metrics, Halstead/ABC, layer contracts, and enforced CI exit codes beyond the optional self-compare script (P3).

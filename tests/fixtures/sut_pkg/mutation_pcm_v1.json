@@ -1,0 +1,23 @@
+{
+  "format": "py-code-metrics.mutation.v1",
+  "killed": 8,
+  "survived": 2,
+  "timeout": 0,
+  "skipped": 0,
+  "survivors": [
+    {
+      "file": "prod.py",
+      "line": 5,
+      "id": "m-add",
+      "operator": "number",
+      "status": "survived"
+    },
+    {
+      "file": "prod.py",
+      "line": 13,
+      "id": "m-incidental",
+      "operator": "number",
+      "status": "survived"
+    }
+  ]
+}

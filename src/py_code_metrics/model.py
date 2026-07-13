@@ -267,6 +267,8 @@ class TestModuleRollup:
     coverage_branch: float | None = None
     weak_oracle_covered_line_count: int = 0
     unchecked_covered_callable_count: int = 0
+    survivor_count: int = 0
+    mean_state_field_coverage: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -307,6 +309,13 @@ class TestOverallReport:
     weak_oracle_covered_lines: list[dict[str, Any]] = field(default_factory=list)
     unchecked_covered_callable_count: int = 0
     weak_oracle_covered_line_count: int = 0
+    mutation_score: float | None = None
+    survivor_count: int = 0
+    survivors: list[dict[str, Any]] = field(default_factory=list)
+    mean_state_field_coverage: float | None = None
+    uncovered_state_fields: list[dict[str, Any]] = field(default_factory=list)
+    state_field_classes: list[dict[str, Any]] = field(default_factory=list)
+    uncovered_state_field_count: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -328,6 +337,8 @@ class TestMetricsReport:
             "swallowed_error": "high",
             "empty_body": "high",
             "weak_oracle_covered_line": "low",
+            "mutation_score_warn": 0.85,
+            "unchecked_state_field": "low",
         }
     )
     overall: TestOverallReport = field(default_factory=TestOverallReport)

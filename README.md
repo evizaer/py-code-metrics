@@ -23,6 +23,7 @@ uv run py-code-metrics diff --json /tmp/before.json /tmp/after.json
 uv run py-code-metrics tests /path/to/project
 uv run py-code-metrics tests /path/to/project --delta
 uv run py-code-metrics tests /path/to/project --coverage coverage.json --full
+uv run py-code-metrics tests /path/to/project --mutation mutants/mutmut-cicd-stats.json --full
 
 # Legacy test flags still emit the full tree
 uv run py-code-metrics --tests /path/to/project
@@ -30,7 +31,7 @@ uv run py-code-metrics --tests /path/to/project
 
 ## Test-quality mode (`--tests`)
 
-Static oracle/smell analysis (P0) plus production linkage and optional coverage ingest (P1):
+Static oracle/smell analysis (P0), production linkage + optional coverage (P1), and mutation ingest + always-on state-field coverage (P2):
 
 | Signal | Meaning |
 | --- | --- |
@@ -40,8 +41,31 @@ Static oracle/smell analysis (P0) plus production linkage and optional coverage 
 | `coverage_line` / `coverage_branch` | Floors from `--coverage` JSON |
 | `weak_oracle_covered_lines` | Lines whose run-contexts are only none/weak-oracle tests (needs contexts) |
 | `unchecked_covered_callables` | Covered production callables with no strong-oracle static caller |
+| `mutation_score` / `survivors` | From `--mutation` (mutmut CICID, Cosmic Ray dump, or PCM v1 JSON) |
+| `mean_state_field_coverage` | Static share of SUT class fields mentioned in oracles (always-on) |
+| `uncovered_state_fields` | Actionable field labels never inspected by oracles |
 
 Pass the **project root** (not only `tests/`) so SUT resolve can see production modules. Generate contexts with `pytest --cov-context=test` then `coverage json --show-contexts`.
+
+### Offline mutation campaigns
+
+`py-code-metrics` does **not** run mutmut/Cosmic Ray. Export a report, then ingest:
+
+```bash
+# mutmut (score-only CICID export)
+mutmut run
+mutmut export-cicd-stats   # → mutants/mutmut-cicd-stats.json
+uv run py-code-metrics tests . --mutation mutants/mutmut-cicd-stats.json --full
+
+# Cosmic Ray (survivors with locations)
+cosmic-ray dump session.sqlite > cosmic.jsonl
+uv run py-code-metrics tests . --mutation cosmic.jsonl --full
+
+# Or hand a normalized PCM report (score + survivors)
+# format: "py-code-metrics.mutation.v1"
+```
+
+`mutation_score = killed / (killed + survived)` (timeouts/skipped excluded). Survivors are tagged with `overlap_flags` when they land on weak-oracle-covered lines or unchecked callables (if `--coverage` was also passed).
 ## Metrics
 
 The P0 suite below is the counterbalancing set from the research notes: gaming one axis tends to worsen another.
@@ -138,4 +162,4 @@ uv run pyrefly check
 
 ## Deferred (later passes)
 
-TCC, CBO, ATFD, God Class, RFC′, Martin package metrics, Halstead/ABC, layer contracts, delta/CI gates, exclude files, and `-m` symbol filters.
+TCC, CBO, ATFD, God Class, RFC′, Martin package metrics, Halstead/ABC, layer contracts, CI exit codes / SARIF (P3), exclude files, and `-m` symbol filters.

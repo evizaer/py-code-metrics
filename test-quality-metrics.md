@@ -4,7 +4,7 @@
 
 **Verdict.** Line/branch coverage measures **execution**, not **verification**. A complementary suite is required: (1) coverage adequacy as a floor, (2) static oracle/smell signals as a fast fake-test detector, (3) mutation (or mutation-correlated proxies) as the gold standard for fault-detection power. Single-metric optimization is unsafe under Goodhart pressure—agents optimizing “coverage %” or “tests exist” correctly emit the cheapest green artifacts. Pair coverage with oracle strength; pair oracle counts with mutation or state-field checks so strong-looking assertions that check the wrong thing still fail.
 
-**Status (2026-07).** P0 static fake-test detection is implemented (`metrics/test_oracles.py`, `metrics/test_smells.py`, `analyze_tests.py`). **P1** production linkage + coverage ingest is implemented (`metrics/test_sut.py`, `metrics/test_coverage.py`, `metrics/test_delta.py`; CLI `--coverage` / `--delta`). Rounds 1–3 hardened the production complementary board; Round 4 landed P1 under that gate (see [`docs/metrics-iteration-log.md`](docs/metrics-iteration-log.md)). Next coding fork: **P2** mutation / dynamic adapters.
+**Status (2026-07).** P0 static fake-test detection is implemented (`metrics/test_oracles.py`, `metrics/test_smells.py`, `analyze_tests.py`). **P1** production linkage + coverage ingest is implemented (`metrics/test_sut.py`, `metrics/test_coverage.py`, `metrics/test_delta.py`; CLI `--coverage` / `--delta`). **P2** mutation ingest + state-field coverage is implemented (`metrics/test_mutation.py`, `metrics/test_state_fields.py`; CLI `--mutation`; SFC always-on). Rounds 1–3 hardened the production complementary board; Round 4 landed P1; Round 6 landed P2 (see [`docs/metrics-iteration-log.md`](docs/metrics-iteration-log.md)). Next coding fork: **P3** gates and agent UX.
 
 ---
 
@@ -244,11 +244,11 @@ Exempt via markers/config: `smoke`, `import_ping`, `property`, `hypothesis`, exp
 - Ingest `coverage.json`; flag “line covered only by none/weak oracle tests.”
 - Delta mode: compare against git diff paths.
 
-**P2 — Mutation / dynamic optional adapters**
+**P2 — Mutation / dynamic optional adapters — DONE**
 
-- Ingest mutmut/Cosmic Ray results; surface survivors next to static findings.
-- Optional subprocess hooks (documented, not default).
-- Consider state-field coverage as a static proxy where mutation is too slow.
+- Ingest mutmut CICID / Cosmic Ray dump / PCM-normalized JSON; surface survivors next to static findings.
+- Optional offline campaign docs (no default runner).
+- Always-on static state-field coverage as a mutation-correlated proxy.
 
 **P3 — Gates and agent UX**
 
@@ -357,7 +357,7 @@ This module’s niche inside `py-code-metrics`: **one JSON report** combining pr
 
 ## 10. Immediate next implementation step (when coding)
 
-**P1 is done** (Round 4 in the iteration log). Next: **P2** — mutation / dynamic optional adapters (mutmut/Cosmic Ray ingest; optional state-field coverage proxy), with a before/after self-analysis via `scripts/compare_self_metrics.py`.
+**P1 is done** (Round 4). **P2 is done** (Round 6): mutation ingest + state-field coverage. Next: **P3** — gates / SARIF / agent UX.
 
 ---
 
@@ -412,7 +412,7 @@ These changes harden the **production** complementary suite so it keeps guiding 
 | 5 | §11.5 self-analysis / CI gate | **done** |
 | 6 | §11.6 reduction-like annotation | **done** |
 
-Next product work: **P2** mutation / dynamic adapters.
+Next product work: **P3** gates and agent UX.
 
 ### 11.8 What not to implement (confirmed anti-patterns)
 

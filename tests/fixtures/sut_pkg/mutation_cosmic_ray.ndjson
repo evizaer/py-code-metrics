@@ -1,0 +1,3 @@
+[{"module_path": "prod.py", "line_number": 5, "job_id": "cr-add", "operator": "core/NumberReplacer"}, {"test_outcome": "survived", "worker_outcome": "normal"}]
+[{"module_path": "prod.py", "line_number": 9, "job_id": "cr-mul", "operator": "core/NumberReplacer"}, {"test_outcome": "killed", "worker_outcome": "normal"}]
+[{"module_path": "prod.py", "line_number": 13, "job_id": "cr-inc", "operator": "core/NumberReplacer"}, {"test_outcome": "SURVIVED", "worker_outcome": "normal"}]

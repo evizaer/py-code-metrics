@@ -107,9 +107,30 @@ def findings_view(
             row = _finding_row(mod, t)
             if row is not None:
                 findings.append(row)
+    overall = report.get("overall") or {}
+    for survivor in overall.get("survivors") or []:
+        findings.append(
+            {
+                "kind": "mutation_survivor",
+                "path": survivor.get("file"),
+                "lineno": survivor.get("line"),
+                "operator": survivor.get("operator"),
+                "id": survivor.get("id"),
+                "overlap_flags": survivor.get("overlap_flags") or [],
+                "severity": "low",
+            }
+        )
+    for item in overall.get("uncovered_state_fields") or []:
+        findings.append(
+            {
+                "kind": "unchecked_state_field",
+                "class": item.get("class"),
+                "field": item.get("field"),
+                "severity": "low",
+            }
+        )
     if limit is not None:
         findings = findings[:limit]
-    overall = report.get("overall") or {}
     return {
         "version": report.get("version", 1),
         "view": "tests_findings",
@@ -123,6 +144,10 @@ def findings_view(
             "high_severity_count": overall.get("high_severity_count"),
             "weak_oracle_covered_line_count": overall.get("weak_oracle_covered_line_count"),
             "unchecked_covered_callable_count": overall.get("unchecked_covered_callable_count"),
+            "mutation_score": overall.get("mutation_score"),
+            "survivor_count": overall.get("survivor_count"),
+            "mean_state_field_coverage": overall.get("mean_state_field_coverage"),
+            "uncovered_state_field_count": overall.get("uncovered_state_field_count"),
         },
     }
 

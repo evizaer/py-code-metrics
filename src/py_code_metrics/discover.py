@@ -21,6 +21,7 @@ SKIP_DIR_NAMES = frozenset(
         "build",
         ".eggs",
         "egg-info",
+        "mutants",
     }
 )
 

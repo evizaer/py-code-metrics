@@ -2,7 +2,7 @@
 
 Target CLI surface for agents doing development work. Goal: tight baseline → edit → remeasure loops with **small, stable JSON** and **exit codes as policy**. Full hierarchical reports remain available for humans and archival; agents should almost never ingest them whole.
 
-Companion docs: [metrics.md](metrics.md) (signal semantics), [metrics-iteration-log.md](metrics-iteration-log.md) (historical lessons), `.cursor/skills/metrics-guided-implement/` (procedural Goodhart rules for any project), `.cursor/skills/metrics-dogfood-reflect/` (self-analysis + iteration log for this repo).
+Companion docs: [metrics.md](metrics.md) (signal semantics), [metrics-iteration-log.md](metrics-iteration-log.md) (how metrics guided or misled — not a feature changelog), `.cursor/skills/metrics-guided-implement/` (procedural Goodhart rules for any project), `.cursor/skills/metrics-dogfood-reflect/` (self-analysis + causal reflection for this repo).
 
 ---
 
@@ -46,8 +46,11 @@ Shared filters (all structural views):
 **When.** Any non-trivial `src/` change. Highest frequency; optimize this first.
 
 ```text
-baseline → implement → remeasure + gate → keep / tweak / rollback → (optional) log
+baseline → implement → remeasure + gate → keep / tweak / rollback → (optional) causal log
 ```
+
+On this repo, when you log: record **metrics-caused** moves and misleads
+(`metrics-dogfood-reflect`), not a summary of what shipped.
 
 ### Agent steps
 

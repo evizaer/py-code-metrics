@@ -7,8 +7,10 @@ from pathlib import Path
 from py_code_metrics.discover import discover_python_files, discover_tests
 from py_code_metrics.metrics.test_coverage import apply_coverage, load_coverage_json
 from py_code_metrics.metrics.test_delta import changed_python_paths
+from py_code_metrics.metrics.test_mutation import apply_mutation, load_mutation_json
 from py_code_metrics.metrics.test_oracles import extract_test_functions
 from py_code_metrics.metrics.test_smells import derive_smells, summarize_oracles
+from py_code_metrics.metrics.test_state_fields import apply_state_field_coverage
 from py_code_metrics.metrics.test_sut import resolve_production_calls
 from py_code_metrics.model import (
     TestCaseMetrics,
@@ -25,9 +27,10 @@ def analyze_tests_path(
     root: Path,
     *,
     coverage_path: Path | None = None,
+    mutation_path: Path | None = None,
     delta: bool = False,
 ) -> TestMetricsReport:
-    """Discover test modules and emit oracle/smell (+ optional coverage) report."""
+    """Discover test modules and emit oracle/smell (+ optional coverage/mutation) report."""
     root = root.resolve()
     all_parsed, skipped = parse_files(discover_python_files(root))
     index = build_symbol_index(all_parsed, root)
@@ -50,11 +53,19 @@ def analyze_tests_path(
         modules=modules,
     )
 
+    apply_state_field_coverage(report, index, root)
+
     if coverage_path is not None:
         ingest = load_coverage_json(coverage_path)
         apply_coverage(report, index, ingest, root)
         meta["coverage_path"] = str(coverage_path.resolve())
         meta["coverage_has_contexts"] = ingest.has_contexts
+
+    if mutation_path is not None:
+        mut = load_mutation_json(mutation_path)
+        apply_mutation(report, mut, root, index)
+        meta["mutation_path"] = str(mutation_path.resolve())
+        meta["mutation_format"] = mut.format_name
 
     if delta:
         paths, note = changed_python_paths(root)
@@ -192,25 +203,57 @@ def _apply_delta_filter(report: TestMetricsReport, delta_paths: set[str]) -> Non
     if not delta_paths:
         return
     normalized = {p.replace("\\", "/") for p in delta_paths}
-    saved_line = report.overall.coverage_line
-    saved_branch = report.overall.coverage_branch
-    saved_weak = report.overall.weak_oracle_covered_lines
-    saved_unchecked = report.overall.unchecked_covered_callables
-
+    saved = _snapshot_optional_signals(report)
     report.modules = [m for m in report.modules if _path_in_delta(m.path, normalized)]
     report.overall = _overall(report.modules)
-    report.overall.coverage_line = saved_line
-    report.overall.coverage_branch = saved_branch
-    report.overall.weak_oracle_covered_lines = [
-        item for item in saved_weak if _path_in_delta(item["file"], normalized)
+    _restore_optional_signals(report, saved, normalized)
+
+
+def _snapshot_optional_signals(report: TestMetricsReport) -> dict:
+    o = report.overall
+    return {
+        "coverage_line": o.coverage_line,
+        "coverage_branch": o.coverage_branch,
+        "weak": list(o.weak_oracle_covered_lines),
+        "unchecked": list(o.unchecked_covered_callables),
+        "mutation_score": o.mutation_score,
+        "survivors": list(o.survivors),
+        "sfc_mean": o.mean_state_field_coverage,
+        "sfc_classes": list(o.state_field_classes),
+        "sfc_uncovered": list(o.uncovered_state_fields),
+    }
+
+
+def _restore_optional_signals(report: TestMetricsReport, saved: dict, normalized: set[str]) -> None:
+    o = report.overall
+    o.coverage_line = saved["coverage_line"]
+    o.coverage_branch = saved["coverage_branch"]
+    o.weak_oracle_covered_lines = [
+        item for item in saved["weak"] if _path_in_delta(item["file"], normalized)
     ]
-    report.overall.weak_oracle_covered_line_count = len(report.overall.weak_oracle_covered_lines)
-    report.overall.unchecked_covered_callables = [
-        q for q in saved_unchecked if _qname_in_delta(q, normalized)
+    o.weak_oracle_covered_line_count = len(o.weak_oracle_covered_lines)
+    o.unchecked_covered_callables = [
+        q for q in saved["unchecked"] if _qname_in_delta(q, normalized)
     ]
-    report.overall.unchecked_covered_callable_count = len(
-        report.overall.unchecked_covered_callables
-    )
+    o.unchecked_covered_callable_count = len(o.unchecked_covered_callables)
+    o.mutation_score = saved["mutation_score"]
+    o.survivors = [
+        item
+        for item in saved["survivors"]
+        if _path_in_delta(str(item.get("file") or ""), normalized)
+    ]
+    o.survivor_count = len(o.survivors)
+    o.state_field_classes = [
+        d for d in saved["sfc_classes"] if _qname_in_delta(str(d.get("class") or ""), normalized)
+    ]
+    o.uncovered_state_fields = [
+        item
+        for item in saved["sfc_uncovered"]
+        if _qname_in_delta(str(item.get("class") or ""), normalized)
+    ]
+    o.uncovered_state_field_count = len(o.uncovered_state_fields)
+    scores = [float(d["score"]) for d in o.state_field_classes]
+    o.mean_state_field_coverage = sum(scores) / len(scores) if scores else saved["sfc_mean"]
 
 
 def _path_in_delta(path: str, delta_paths: set[str]) -> bool:
