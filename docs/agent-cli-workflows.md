@@ -2,7 +2,7 @@
 
 Target CLI surface for agents doing development work. Goal: tight baseline → edit → remeasure loops with **small, stable JSON** and **exit codes as policy**. Full hierarchical reports remain available for humans and archival; agents should almost never ingest them whole.
 
-Companion docs: [metrics.md](metrics.md) (signal semantics), [metrics-iteration-log.md](metrics-iteration-log.md) (historical lessons), `.cursor/skills/implement-and-reflect/` (procedural Goodhart rules).
+Companion docs: [metrics.md](metrics.md) (signal semantics), [metrics-iteration-log.md](metrics-iteration-log.md) (historical lessons), `.cursor/skills/metrics-guided-implement/` (procedural Goodhart rules for any project), `.cursor/skills/metrics-dogfood-reflect/` (self-analysis + iteration log for this repo).
 
 ---
 
@@ -312,7 +312,7 @@ Uses real subcommand stdout when available. Keep the original 2026-07-12 baselin
 
 Notes on the then-current W1 number:
 
-- The implement-and-reflect skill told agents to write full JSON to `/tmp` and skim `overall.*`. If the agent opened the files wholesale (common), cost was ~2× full report.
+- An earlier implement-and-reflect skill told agents to write full JSON to `/tmp` and skim `overall.*`. If the agent opened the files wholesale (common), cost was ~2× full report.
 - Even a careful `jq` skim was ~17× larger than `board` and still left gate logic in a separate text script.
 
 ### Measured — 2026-07-12 post-implementation (`src/py_code_metrics`, 28 files, 10 unpaid hotspots)
