@@ -17,14 +17,18 @@ CallableKind = Literal[
 
 @dataclass(frozen=True)
 class Thresholds:
-    """Soft gates emitted in reports and used by hotspot predicates."""
+    """Soft gates emitted in reports and used by hotspot predicates.
+
+    Per-callable size (`statements`, body/header tokens) stays on each callable
+    as context only — it is intentionally absent here so agents do not treat
+    length as a split mandate when nesting / cognitive / ``v_poly`` are fine.
+    """
 
     nesting_depth: int = 3
     params: int = 5
     v_poly_strict: int = 10
     v_poly_lenient: int = 15
     cognitive: int = 15
-    statements: int = 50
     lcom4_max: int = 1
 
     def to_dict(self) -> dict[str, Any]:

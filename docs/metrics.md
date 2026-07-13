@@ -67,15 +67,15 @@ Positive target shape for production code: **high-fan-in, simple cores** plus **
 
 **Why include it.** Blocks “just add another flag” growth and pushes toward narrower functions or parameter objects.
 
-**Counter-balances.** Wide APIs can hide behind “simple” bodies. Pair with size metrics (`statements`) and cohesion on the owning type. Does not measure reuse—wide but highly reused cores may still be legitimate.
+**Counter-balances.** Wide APIs can hide behind “simple” bodies. Pair with cohesion on the owning type and unpaid/hotspot complexity—not with a per-function length cap. Does not measure reuse—wide but highly reused cores may still be legitimate.
 
 ### `statements`
 
-**What it means.** Count of statements walked in the function body (complexity visitor). Soft gate ≈ 50 (Pylint-style).
+**What it means.** Count of statements walked in the function body (complexity visitor). Reported on each callable for context; **not** a soft threshold and **not** part of the hotspot predicate.
 
-**Why include it.** Size proxy for “doing too much” when complexity metrics are moderate but the body is long.
+**Why include it.** Useful when reading a symbol (how large is this body?) alongside nesting / cognitive / `v_poly`. Length alone is not a readability verdict.
 
-**Counter-balances.** Size caps encourage fragmentation—pair with **`S`** and **`fan_in_ext`**. Prefer totals / rollups over minimizing per-function size as an objective.
+**Counter-balances.** Do **not** extract or shard to shrink `statements` (or tokens) when complexity gates are already fine—that is the unpaid-fragmentation failure mode. Prefer **`max_nesting`**, **`cognitive`**, **`v_poly`**, and **`unpaid`/`S`** as the split signals.
 
 ### `returns`
 
@@ -471,8 +471,9 @@ Pytest marks, exemption flag, and framework hint (`pytest` / `unittest` / `unkno
 | `params` | 5 | Reported guidance |
 | `v_poly_strict` / `v_poly_lenient` | 10 / 15 | Guidance / hotspot |
 | `cognitive` | 15 | Hotspot |
-| `statements` | 50 | Guidance |
 | `lcom4_max` | 1 | Guidance (skip dispatch classes) |
+
+Per-callable `statements` / `body_tokens` / `header_tokens` remain in the report JSON as informational fields only (LTR: no per-function length threshold).
 
 **Test defaults:** `frac_oracle_none_warn`, smell severities, `prefer_strong_majority`, `mutation_score_warn` (0.85), `unchecked_state_field`.
 

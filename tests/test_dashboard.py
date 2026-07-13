@@ -69,6 +69,25 @@ def test_reduction_like_v_poly_alone_not_hotspot():
     assert not is_hotspot(c, DEFAULT_THRESHOLDS)
 
 
+def test_ltr_no_statements_threshold_long_flat_not_hotspot():
+    """LTR: length is context; unpaid long/shallow bodies are not hotspots."""
+    assert "statements" not in DEFAULT_THRESHOLDS.to_dict()
+    c = _cm(
+        v_poly=4,
+        cyclomatic=4,
+        cognitive=5,
+        max_nesting=1,
+        fan_in_ext=1,
+        S=-80.0,
+        statements=200,
+        body_tokens=900,
+        role="helper",
+    )
+    c.unpaid = is_unpaid(c)
+    assert c.unpaid
+    assert not is_hotspot(c, DEFAULT_THRESHOLDS)
+
+
 def test_dashboard_fixture_e2e():
     report = analyze_path(FIXTURE)
     d = report.to_dict()
@@ -106,3 +125,5 @@ def test_dashboard_fixture_e2e():
     unpaid_leaf = by_qname["mod.tangled_leaf"]
     assert unpaid_leaf["unpaid"] is True
     assert unpaid_leaf["qualified_name"] in hotspot_names
+    assert "statements" in unpaid_leaf
+    assert "statements" not in d["thresholds"]

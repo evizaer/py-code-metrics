@@ -80,9 +80,9 @@ The P0 suite below is the counterbalancing set from the research notes: gaming o
 | `v_poly` | Dispatch-expanded complexity: `v(G)` plus `(|targets|-1)` at resolvable polymorphic call sites |
 | `cognitive` | Sonar-style cognitive complexity (nesting-weighted) |
 | `max_nesting` | Deepest control-flow nesting |
-| `params` / `statements` / `returns` | Size / interface signals (method params exclude `self`/`cls`) |
-| `fan_in` / `fan_in_ext` / `fan_in_rec` | Static call-site fan-in (total / external / recursive) |
-| `body_tokens` / `header_tokens` / `mean_call_cost` | Token inputs to ETSPA |
+| `params` / `returns` | Interface / exit-shape signals (method params exclude `self`/`cls`) |
+| `statements` | Body size context only — not a split gate or soft threshold |
+| `body_tokens` / `header_tokens` / `mean_call_cost` | Token inputs to ETSPA (also useful size context; not a length gate) |
 | `S` / `etspa` | Effective tokens saved vs inlining: `S = (F-1)B - H - F·C` (`U=1`) |
 | `car` | Call-to-assign ratio: `calls / (1 + assigns)` |
 | `lmd` | Local mutation density: local/param stores ÷ body tokens |
@@ -113,7 +113,7 @@ The P0 suite below is the counterbalancing set from the research notes: gaming o
 
 Per-callable flags: `unpaid`, `dispatch_exempt` (`visit_*` on `ast.NodeVisitor`), `reduction_like` (flat aggregation vs deep spaghetti). Class metrics add `dispatch_class` / `lcom4_gate_exempt` so visitor LCOM4 is not treated as a split mandate.
 
-Suggested thresholds (emitted under `thresholds`, not enforced as exit codes yet): nesting ≤ 3, params ≤ 5, `v_poly` ≤ 10–15, cognitive ≈ 15, statements ≈ 50, LCOM4 ≤ 1 (skip LCOM4 gates on dispatch classes).
+Suggested thresholds (emitted under `thresholds`, not enforced as exit codes yet): nesting ≤ 3, params ≤ 5, `v_poly` ≤ 10–15, cognitive ≈ 15, LCOM4 ≤ 1 (skip LCOM4 gates on dispatch classes). There is **no** per-function statements/LOC threshold—long flat functions are fine when complexity and unpaid/hotspot signals are healthy.
 
 ## Self-analysis gate
 

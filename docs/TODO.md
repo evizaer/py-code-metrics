@@ -1,4 +1,3 @@
 - RDP. Mechanism for identifying and raising design problems to the human.
 - PIF. Pure-core impure-shell patterns? How do I force functions to be pure as often as possible and for the impure stuff to be relatively small and isolated? Maybe putting downward pressure on the number of functions covered by tests that have mocks, or the number of mocks, or the number of functions that are mocked?
 - DOU. Detecting dict overuse or a lack of structure in data?
-- LTR. Can we remove the LOC threshold for functions? We should have sufficient metric coverage that a LOC threshold is redundant or maybe even harmful. I'm OK with longer functions so long as they are not harming the readability of the function. If complexity is reasonable, function length is no object.

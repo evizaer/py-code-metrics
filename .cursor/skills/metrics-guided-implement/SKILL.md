@@ -165,6 +165,7 @@ Refactor candidates are symbols that are **complex and unpaid**:
 - not `dispatch_exempt`, not a healthy paid core
 
 Do **not** chase raw high `v_poly` on paid helpers (F≥2, S≫0).
+Do **not** treat high `statements` / token counts as a reason to split when those soft gates are fine—length is context, not a hotspot driver.
 
 ## Hard no’s (Goodhart)
 
@@ -175,6 +176,7 @@ Do **not** chase raw high `v_poly` on paid helpers (F≥2, S≫0).
 - Maximize average ETSPA by deleting intentional leaf steps or visitors
 - Optimize `frac_fan_in≤1` or function count in isolation
 - Extract F=1 shards solely to relocate branches out of a parent
+- Extract or shrink bodies to green a statements/LOC/token budget when nesting / cognitive / `v_poly` are already acceptable
 
 **Tests**
 
