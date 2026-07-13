@@ -2,6 +2,14 @@
 
 Target corpus: `src/py_code_metrics` (the tool analyzing itself).
 
+**Purpose.** Document how well the complementary suite **guided** agent work:
+volume and quality of edits made *because of* board/gate/hotspot signals, and
+cases where metrics misled, wasted time, or pushed undesirable structure.
+Board tables are evidence. This is **not** a feature changelog — verdicts that
+only restate what shipped have drifted off-purpose (see skill
+`metrics-dogfood-reflect`).
+
+
 ## Index — commits and feedback
 
 | Round | Approx. commits / changeset | Snapshot | Notes |
@@ -311,7 +319,7 @@ Fails on rising `n_unpaid_hotspots`, or rising `max_v_poly` when the new max sym
 
 ### Round 3 verdict
 
-Product gaps from Round 2 are closed without regressing the R2 complexity plateau (`max_v_poly=19`). The suite now **points agents at unpaid debt** and **stops nagging visitors / paid cores**. Global `sum_S` worsened slightly from new dashboard helpers (accepted feature cost); use `helpers_cores` for ETSPA gates going forward. Next coding fork: P1 test-quality (coverage ingest) under this board — with a before/after self-analysis note in this log.
+This round *was* the product response to Round 2’s feedback: unpaid hotspot predicate, dispatch exemptions, helpers_cores vs leaves, and count-based dashboards. Guidance quality should improve going forward — agents get pointed at unpaid debt and stop nagging visitors / paid cores. Accepted cost: global `sum_S` dipped from new dashboard helpers; ETSPA judgment moves to `helpers_cores`. Success of R3 is measured by whether later rounds thrash less on false debt (see R4+).
 
 ---
 
@@ -353,7 +361,9 @@ Product gaps from Round 2 are closed without regressing the R2 complexity platea
 
 ### Round 4 verdict
 
-P1 lands under the complementary board without regressing unpaid hotspot count or `max_v_poly`. Prefer project-root `--tests` so SUT resolve sees production modules; contexts need `coverage json --show-contexts`. Next: P2 mutation ingest.
+**Guided well:** the unpaid-hotspot gate forced a mid-feature cleanup — first coverage draft briefly added two unpaid helpers; flattening them into pipeline steps was work the board demanded, not optional polish. Raising `resolve_call` fan-in via SUT linkage moved a long-standing design-bound symbol off the unpaid list for the right reason (amortization), which matches the F2 hotspot predicate better than another extract campaign would have.
+
+**Risk / lesson:** a reader could treat “`resolve_call` left hotspots” as a complexity win; it was a **payment** win. Gate PASS alone would have hidden the draft thrash if the log only celebrated flat counts.
 
 ---
 
@@ -367,4 +377,34 @@ P1 lands under the complementary board without regressing unpaid hotspot count o
 
 **Payload wins (measure harness):** W1 pass **423 B** (was ~510 KB naive); W1 fail **4 624 B**; W2 **4 201 B**; W3 findings **4 682 B** (was ~52 KB full tests).
 
-**Verdict.** Agent CLI contract lands under complementary board; skill now forbids opening full snapshots.
+**Metrics-caused moves.** New view helpers initially raised unpaid hotspots; paid extracts (`iter_callables` / gate helpers) were kept only after F/S looked honest — same anti-fragmentation loop as earlier rounds, applied to agent UX code. Payload measurement (not structural metrics) drove the “never open full snapshots” skill rule.
+
+**Verdict.** Structural suite correctly blocked shipping the first draft of the CLI views as unpaid dust; complementary board stayed flat only after paid sharing. Separate success signal (interrogated bytes) was necessary — `n_unpaid_hotspots` alone would not have justified the agent-view work.
+
+---
+
+## Round 6 — P2 mutation ingest + state-field coverage (2026-07-12)
+
+**Intent.** Complete P2: optional `--mutation` ingest (PCM v1 / mutmut CICID / Cosmic Ray dump) plus always-on static state-field coverage; surface survivors and uncovered fields in `tests` findings view; document offline campaigns.
+
+**Files.** `metrics/test_mutation.py`, `metrics/test_state_fields.py`; wire-up in `analyze_tests.py`, `model.py`, `cli.py`, `views.py`; fixtures under `tests/fixtures/sut_pkg/` + `stateful_pkg/`; docs in README, `docs/metrics.md`, `test-quality-metrics.md`.
+
+**Board (vs pre-P2 snapshot of `src/py_code_metrics`).**
+
+| Signal | Before | After | Δ |
+| --- | --- | --- | --- |
+| `n_unpaid_hotspots` | 10 | **10** | 0 |
+| unpaid `max_v_poly` | 19 | **19** | 0 |
+| `max_nesting` | 4 | 4 | 0 |
+| `helpers_cores.sum_S` | +1266 | **+1393** | +127 |
+
+First draft raised unpaid hotspots 10→17 (`_apply_delta_filter`, several SFC helpers). Flattened into named pipeline steps / shared suffix resolvers until the unpaid hotspot set was unchanged.
+
+### Round 6 verdict
+
+**Guided well / volume:** the gate caught a real Goodhart path — first draft raised unpaid hotspots 10→17 (`_apply_delta_filter`, several SFC helpers). The suite forced a second pass of flatten / shared suffix resolvers until the unpaid set was unchanged; that cleanup volume is attributable to metrics, not to the P2 feature checklist.
+
+**Quality:** ending flat (`n_unpaid_hotspots` 10→10, unpaid max still 19) with higher `helpers_cores.sum_S` is the desired shape for a feature drop: new paid sharing, no new unpaid spaghetti.
+
+**Mislead risk:** a gate that only checked `max_v_poly` would have PASS’d the dusty first draft (max held at 19 while unpaid count spiked). Unpaid-hotspot count remains the higher-signal primary fail for feature modules.
+

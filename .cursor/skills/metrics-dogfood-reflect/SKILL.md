@@ -1,11 +1,11 @@
 ---
 name: metrics-dogfood-reflect
 description: >-
-  Dogfood py-code-metrics on itself: self-analyze src/py_code_metrics, log how
-  metrics guided or misled refactors, and capture product feedback in the
-  iteration log. Use when changing this repository’s metrics, CLI, gates, or
-  hotspot policy; after a metrics-guided campaign; or when the user asks to
-  reflect on metric quality from self-analysis.
+  Dogfood py-code-metrics on itself: self-analyze src/py_code_metrics, and log
+  causal reflection — volume/quality of work the metrics caused, plus misleads
+  and wasted probes — into the iteration log (not a feature changelog). Use when
+  changing this repository’s metrics, CLI, gates, or hotspot policy; after a
+  metrics-guided campaign; or when the user asks to reflect on metric quality.
 ---
 
 # Metrics dogfood & reflect (this repo)
@@ -65,17 +65,53 @@ Legacy gate script (same predicates as `diff`): `scripts/compare_self_metrics.py
 
 When the change moved the board (feature drop, hotspot cleanup, or intentional
 leave-alone), append a short note to
-[`docs/metrics-iteration-log.md`](../../../docs/metrics-iteration-log.md):
-intent, key symbol deltas, gate result, anything the metrics misled you about.
+[`docs/metrics-iteration-log.md`](../../../docs/metrics-iteration-log.md).
+
+### Purpose of the log (read this every time)
+
+The iteration log is **not** a changelog of what shipped. Feature intent and
+files belong in commits / PR text. The log exists to evaluate the **metrics
+product as a guide for agent work**:
+
+1. **Causal volume** — how much edit effort happened *because* the board / gate /
+   hotspot views steered you (flatten, paid extract, rollback, leave-alone)?
+2. **Causal quality** — did that guidance produce desirable structure, or only
+   greener numbers?
+3. **Failure modes** — where did metrics **mislead**, **waste time**, or push
+   **counter-intuitive / undesirable** changes?
+
+Board tables are evidence for those questions, not the deliverable.
+
+### Verdict must answer (not “what we shipped”)
+
+Write the **Verdict** / **Metrics feedback** sections so a reader learns:
+
+| Ask | Good answer shape |
+| --- | --- |
+| What did the suite make the agent do? | Specific moves: inline unpaid extract, flatten until gate flat, skip visitor “debt”, … |
+| Did that pay off? | Desirable structure vs cosmetic / relocated complexity |
+| Where did guidance fail? | False debt, Goodhart temptation, thrash, missed real debt, wasted probes |
+| What should the product change? | Flag / exemption / dashboard / gate tweak — or “none this round” |
+
+### Hard no’s for log entries
+
+- Summarizing completed work (“P2 lands… Next: P3”) as the verdict
+- Restating the intent / file list without causal reflection
+- Celebrating gate PASS alone without saying *how* metrics shaped the path
+- Omitting rejected / rolled-back moves (those are the highest-signal lessons)
+
+Gold-standard shape: Round 2 (“How well the metrics guided…”) in the same log.
+Thin board-only notes are fine for tiny edits; campaigns and feature drops
+**always** need causal reflection.
 
 Template and gate semantics: [reference.md](reference.md).
 
 ## Product feedback loop
 
 If metrics **misled**, **missed real debt**, or **rewarded a Goodhart move**,
-record it under **Metrics feedback** in the log entry and consider whether the
-tool needs a new flag, exemption, dashboard split, or gate tweak. Historical
-rounds & tracker: the same iteration log.
+record it under **Metrics feedback** (mandatory for campaigns) and consider
+whether the tool needs a new flag, exemption, dashboard split, or gate tweak.
+Historical rounds & tracker: the same iteration log.
 
 ## References
 
