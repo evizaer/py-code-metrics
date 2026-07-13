@@ -236,7 +236,7 @@ Exempt via markers/config: `smoke`, `import_ping`, `property`, `hypothesis`, exp
 
 - Discover/parse tests; classify oracles; emit smell codes; JSON rollups.
 - No test execution → fast, agent-friendly, CI-cheap.
-- Round 2 lesson: shipping P0 briefly raised corpus `max_v_poly` (`_classify_assert_test` → 23). Static test quality and production spaghetti pressure must land together—see §11.5 process gate.
+- Round 2 lesson: shipping P0 briefly raised corpus `max_v_poly` (`_classify_assert_test` → 23). Static test quality and production spaghetti pressure must land together—see the self-analysis gate in [`docs/metrics-suite-hardening.md`](docs/metrics-suite-hardening.md).
 
 **P1 — Production linkage + coverage ingest — DONE**
 
@@ -359,67 +359,4 @@ This module’s niche inside `py-code-metrics`: **one JSON report** combining pr
 
 **P1 is done** (Round 4). **P2 is done** (Round 6): mutation ingest + state-field coverage. Next: **P3** — gates / SARIF / agent UX.
 
----
-
-## 11. Implementation plan: metric improvements from self-iteration
-
-These changes harden the **production** complementary suite so it keeps guiding test-quality (and other) work without false debt or false wins. **Status: implemented in Round 3** (see iteration log feedback tracker F1–F6).
-
-### 11.1 High — Dispatch-exempt scoring for AST `NodeVisitor` patterns — DONE
-
-**What changed.** `visit_*` / `generic_visit` on `ast.NodeVisitor` subclasses get `dispatch_exempt=True`; classes get `dispatch_class` / `lcom4_gate_exempt`. Exempt methods are not `unpaid` and never enter `hotspots`.
-
-**Why.** Fan-in 0 and bleak ETSPA were measurement artifacts; splitting visitors games LCOM4.
-
-### 11.2 High — Hotspot = high complexity *and* unpaid — DONE
-
-**What changed.** Per-callable `unpaid`; `overall.hotspots[]` sorted by complexity among unpaid symbols only. Paid cores (e.g. `_classify_compare`) drop off the fix list.
-
-**Why.** Complexity alone measures decision size; unpaidness measures whether splitting helps.
-
-### 11.3 Medium — Split dashboards by role (helper ETSPA vs leaf expression) — DONE
-
-**What changed.** `etspa.helpers_cores` (helpers+cores, non-exempt) and `expression.leaves`. Global fracs kept for continuity with a note to prefer the split boards for gates.
-
-**Why.** Leaf pipeline vocabulary is F=1 by construction; global `frac_fan_in≤1` punished the positive shape.
-
-### 11.4 Medium — Count of over-threshold callables, not only corpus max — DONE
-
-**What changed.** `n_v_poly_gt_15`, `n_nesting_gt_3`, unpaid variants, `n_unpaid_hotspots` on overall complexity and module rollups.
-
-**Why.** Max can stick while counts improve (Round 2 nest 4→3 invisible on max alone).
-
-### 11.5 Medium — Process: self-analysis gate after feature drops — DONE
-
-**What changed.** `scripts/compare_self_metrics.py` + README section. Fails on rising unpaid hotspot count or unpaid `max_v_poly`.
-
-**Why.** P0 briefly shipped `v_poly=23` oracle spaghetti; gates make that visible.
-
-### 11.6 Low — Aggregation / reduction-only discount on `v_poly` — DONE
-
-**What changed.** `reduction_like` annotation; hotspot predicate does not fire on high `v_poly` alone when set (nesting/cognitive can still fire).
-
-**Why.** Flat aggregation leaves overstate spaghetti risk relative to nested unpaid debt.
-
-### 11.7 Suggested implementation order
-
-| Step | Item | Status |
-| --- | --- | --- |
-| 1 | §11.2 unpaid hotspot predicate + `hotspots[]` | **done** |
-| 2 | §11.4 over-threshold counts | **done** |
-| 3 | §11.3 role-split ETSPA / expression dashboards | **done** |
-| 4 | §11.1 NodeVisitor dispatch exemption | **done** |
-| 5 | §11.5 self-analysis / CI gate | **done** |
-| 6 | §11.6 reduction-like annotation | **done** |
-
-Next product work: **P3** gates and agent UX.
-
-### 11.8 What not to implement (confirmed anti-patterns)
-
-From iteration stop rules—do not productize these as “fixes”:
-
-- Strategy / class-per-case hierarchies to lower raw CC while `v_poly` rises.
-- Splitting each `visit_*` into a tiny free function to beautify LCOM4/NOM.
-- Maximizing average ETSPA by deleting low-`S` leaf vocabulary or visitors.
-- Artificial `self._touch` coupling to force LCOM4→1 on visitors.
-- Re-extracting resolve/oracle branches solely to green one symbol’s `v_poly` without F≥2 or real cognitive relief.
+Production complementary-suite hardening from dogfood rounds (dispatch exemptions, unpaid hotspots, role-split boards, self-analysis gate) lives in [`docs/metrics-suite-hardening.md`](docs/metrics-suite-hardening.md).

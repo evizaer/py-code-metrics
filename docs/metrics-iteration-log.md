@@ -256,7 +256,7 @@ The suite **successfully** (1) caught P0’s oracle spaghetti, (2) steered clean
 
 ## Round 3 — dashboard hardening (addresses F1–F6)
 
-**Changeset:** implement `test-quality-metrics.md` §11 (product feedback from Round 2).  
+**Changeset:** implement `docs/metrics-suite-hardening.md` (product feedback from Round 2; formerly `test-quality-metrics.md` §11).  
 **Commit:** `5ee2701`. Base HEAD at start: `1446e9b`.  
 **Files:** `dashboard.py` (new), `model.py`, `analyze.py`, `scripts/compare_self_metrics.py`, `README.md`, tests/fixtures under `dashboard_pkg/`.  
 **Snapshots:** `/tmp/pcm-round3-before.json` (post-R2 corpus, old report shape) → `/tmp/pcm-round3-after.json`.

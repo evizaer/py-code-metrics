@@ -113,9 +113,16 @@ record it under **Metrics feedback** (mandatory for campaigns) and consider
 whether the tool needs a new flag, exemption, dashboard split, or gate tweak.
 Historical rounds & tracker: the same iteration log.
 
+When dogfooding **test-quality** changes (oracles, coverage ingest, mutation,
+SFC), also note whether survivors / weak-oracle findings steered real oracle
+upgrades vs theater—same causal bar as structural rounds. Procedural mill:
+[metrics-guided-implement](../metrics-guided-implement/SKILL.md) §5 and Workflow 3
+in `docs/agent-cli-workflows.md`.
+
 ## References
 
 - Generic implement loop: [../metrics-guided-implement/SKILL.md](../metrics-guided-implement/SKILL.md)
 - Agent CLI workflows: [docs/agent-cli-workflows.md](../../../docs/agent-cli-workflows.md)
 - Board semantics: [README.md](../../../README.md)
 - Research intent: [anti-spaghetti-research.md](../../../anti-spaghetti-research.md)
+- Test-quality research: [test-quality-metrics.md](../../../test-quality-metrics.md)

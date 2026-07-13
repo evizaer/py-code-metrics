@@ -66,6 +66,8 @@ uv run py-code-metrics tests . --mutation cosmic.jsonl --full
 ```
 
 `mutation_score = killed / (killed + survived)` (timeouts/skipped excluded). Survivors are tagged with `overlap_flags` when they land on weak-oracle-covered lines or unchecked callables (if `--coverage` was also passed).
+
+**Agent loop:** static `tests` findings first; scoped mutmut only for critical paths / campaigns. Judgment rules live in `.cursor/skills/metrics-guided-implement/` (§5 + reference “test-quality mill”).
 ## Metrics
 
 The P0 suite below is the counterbalancing set from the research notes: gaming one axis tends to worsen another.

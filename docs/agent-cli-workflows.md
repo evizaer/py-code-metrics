@@ -28,7 +28,7 @@ Keep today’s default (`py-code-metrics <path>` → full JSON) for compatibilit
 | `symbol <path> <qname>` | Single callable (or class) | That symbol’s metrics + light neighbors (callers/callees counts or names) |
 | `diff <before> <after>` | Gate + board delta | Text summary for humans; JSON mode for agents; exit `1` on regression |
 | `snapshot <path> -o FILE` | Persist full report once | Write full JSON; subsequent views read `-f FILE` |
-| `tests …` | Existing `--tests` / `--coverage` / `--delta` as a clear mode | Compact finding lists, not full trees |
+| `tests …` | Test-quality findings (oracles, SFC, optional coverage/mutation) | Compact finding lists, not full trees |
 
 Shared filters (all structural views):
 
@@ -75,7 +75,8 @@ py-code-metrics symbol -f /tmp/pcm-after.json some.module.fn
 
 - Prefer `snapshot` + `-f` so `board` / `hotspots` / `symbol` / `diff` do not re-walk the tree.
 - Agents read **`diff` then `hotspots`**, never the full after report, unless debugging the tool itself.
-- Pure `tests/` edits with no `src/` change: skip structural gate; use Workflow 3 if test quality matters.
+- Pure `tests/` edits with no `src/` change: skip structural gate; use Workflow 3
+  (static findings; mutation only if explicitly improving oracle power).
 
 ### Gate policy (encode in `diff`)
 
@@ -118,27 +119,59 @@ Each hotspot entry should already carry enough to decide without a second call w
 
 ## Workflow 3 — Test-quality loop
 
-**When.** Adding or changing tests; verifying oracle strength and SUT linkage.
+**When.** Adding or changing tests; verifying oracle strength and SUT linkage;
+turning mutation survivors / uncovered state fields into stronger tests.
 
 ```text
-tests findings → fix weak/none oracles → optional coverage floors → delta-scoped recheck
+static findings → fix smells/weak oracles/SFC gaps
+  → optional coverage floors
+  → (selective) scoped mutation campaign → kill survivors with strong oracles
+  → delta-scoped recheck
 ```
 
-### Agent steps
+Skills own the judgment mill (`.cursor/skills/metrics-guided-implement/`);
+this workflow is the measurement path.
+
+### Agent steps — static (every test-touching change)
 
 ```bash
-py-code-metrics tests . --delta          # changed paths only
+py-code-metrics tests . --delta          # changed paths; default mid-PR
+py-code-metrics tests .                  # full tree for campaigns
 py-code-metrics tests . --coverage coverage.json --delta
 ```
 
+Act on compact findings in order: high smells → weak oracles →
+`unchecked_state_field` → coverage weak-lines / unchecked callables.
+
+### Agent steps — mutation (selective)
+
+Run **only** for critical/hotspot modules, new behavioral surfaces, explicit
+campaigns, or when static signals look too clean (suspected theater). Never as
+the default step for typo-sized edits.
+
+```bash
+# Scope mutmut (or Cosmic Ray) to the production files under edit + related tests.
+# Example config: [tool.mutmut] source_paths = ["src/.../changed.py"]
+uv run --with mutmut mutmut run
+uv run --with mutmut mutmut export-cicd-stats
+py-code-metrics tests . --mutation mutants/mutmut-cicd-stats.json
+# Survivor rows in findings need PCM v1 or Cosmic Ray dump (CICID is score-only).
+```
+
+For each survivor: `mutmut show <id>` → add a **requirement-oriented** strong
+oracle that fails under the mutant → re-run **scoped** mutation. Do not freeze
+mutant behavior as the expected value. Leave equivalent/low-value survivors;
+do not chase 100% score.
+
 ### Efficiency rules
 
-- Pass **project root** so SUT resolve sees production modules.
-- Default agent output: smells / weak oracles / unchecked covered callables — not every test’s full metric blob.
-- `--delta` is the default recommendation mid-PR; full-suite scan is for campaigns or CI.
+- Pass **project root** so SUT resolve / SFC see production modules.
+- Default agent output: smells / weak oracles / survivors / uncovered state —
+  not every test’s full metric blob (`--full` only when debugging the tool).
+- `--delta` mid-PR; full-suite scan for campaigns or CI.
 - Coverage contexts (`--show-contexts`) only when chasing weak-oracle-only lines.
-
----
+- Mutation: narrow `source_paths` + test selection; `mutants/` is discovery-skipped.
+- Prefer static SFC as the cheap always-on mutation proxy between campaigns.
 
 ## Workflow 4 — Scoped / PR gate
 
