@@ -8,26 +8,24 @@ Executable that scores Python code for humans and agentic development systems. I
 # Install (editable, with dev tools)
 uv sync
 
-# Analyze all Python files under a directory (recursive)
+# Full hierarchical JSON (humans / archival)
 uv run py-code-metrics /path/to/project
-
-# Or as a module
 uv run python -m py_code_metrics /path/to/project
 
-# Test-quality mode (oracle tiers / smells); pass project root for SUT linkage
+# Agent-oriented views (prefer these mid-edit — see docs/agent-cli-workflows.md)
+uv run py-code-metrics snapshot src/py_code_metrics -o /tmp/pcm.json
+uv run py-code-metrics board -f /tmp/pcm.json
+uv run py-code-metrics hotspots -f /tmp/pcm.json
+uv run py-code-metrics symbol -f /tmp/pcm.json pkg.mod.fn
+uv run py-code-metrics diff --json /tmp/before.json /tmp/after.json
+
+# Test-quality findings (compact); --full for the legacy tree
+uv run py-code-metrics tests /path/to/project
+uv run py-code-metrics tests /path/to/project --delta
+uv run py-code-metrics tests /path/to/project --coverage coverage.json --full
+
+# Legacy test flags still emit the full tree
 uv run py-code-metrics --tests /path/to/project
-
-# Merge coverage.py JSON floors; with --show-contexts data, flag weak-oracle-only lines
-uv run py-code-metrics --tests --coverage coverage.json /path/to/project
-
-# Restrict findings to git-changed *.py paths
-uv run py-code-metrics --tests --delta /path/to/project
-```
-
-JSON is written to stdout. Pipe or redirect as needed:
-
-```bash
-uv run py-code-metrics . > metrics.json
 ```
 
 ## Test-quality mode (`--tests`)
@@ -96,13 +94,13 @@ Suggested thresholds (emitted under `thresholds`, not enforced as exit codes yet
 After changing `src/`, snapshot and compare so new modules cannot raise unpaid hotspots unnoticed:
 
 ```bash
-uv run py-code-metrics src/py_code_metrics > /tmp/pcm-before.json
+uv run py-code-metrics snapshot src/py_code_metrics -o /tmp/pcm-before.json
 # ... edit ...
-uv run py-code-metrics src/py_code_metrics > /tmp/pcm-after.json
-uv run python scripts/compare_self_metrics.py /tmp/pcm-before.json /tmp/pcm-after.json
+uv run py-code-metrics snapshot src/py_code_metrics -o /tmp/pcm-after.json
+uv run py-code-metrics diff --json /tmp/pcm-before.json /tmp/pcm-after.json
 ```
 
-The script fails if `n_unpaid_hotspots` or `max_v_poly` rises. Log notable deltas in `docs/metrics-iteration-log.md`.
+`diff` exits non-zero if `n_unpaid_hotspots` or unpaid `max_v_poly` rises. (`scripts/compare_self_metrics.py` remains a thin wrapper.) Log notable deltas in `docs/metrics-iteration-log.md`. Agent workflow details and payload success metrics: [docs/agent-cli-workflows.md](docs/agent-cli-workflows.md).
 
 ## Report shape
 

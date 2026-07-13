@@ -354,3 +354,17 @@ Product gaps from Round 2 are closed without regressing the R2 complexity platea
 ### Round 4 verdict
 
 P1 lands under the complementary board without regressing unpaid hotspot count or `max_v_poly`. Prefer project-root `--tests` so SUT resolve sees production modules; contexts need `coverage json --show-contexts`. Next: P2 mutation ingest.
+
+---
+
+## Round 5 — Agent CLI views (2026-07-12)
+
+**Intent.** Ship agent-facing subcommands (`board`, `hotspots`, `symbol`, `diff`, `snapshot`, compact `tests`) so mid-edit loops interrogate small JSON instead of full reports. Measure success as interrogated bytes.
+
+**Files.** `compare.py`, `views.py`, `cli.py` rewrite; `scripts/measure_agent_payloads.py`; thin `compare_self_metrics.py` wrapper; skill + README + `docs/agent-cli-workflows.md`.
+
+**Board.** New modules initially added unpaid hotspots (`compare.compare`, `views.find_symbol`, …). Paid extracts (`iter_callables` / gate helpers) restored **n_unpaid_hotspots = 10** (flat vs prior self-gate). Import graph still acyclic.
+
+**Payload wins (measure harness):** W1 pass **423 B** (was ~510 KB naive); W1 fail **4 624 B**; W2 **4 201 B**; W3 findings **4 682 B** (was ~52 KB full tests).
+
+**Verdict.** Agent CLI contract lands under complementary board; skill now forbids opening full snapshots.

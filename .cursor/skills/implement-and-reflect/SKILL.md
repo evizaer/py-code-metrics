@@ -13,6 +13,8 @@ description: >-
 Do **not** ship structural edits to this repo without a before/after metrics pass.
 Optimize the **complementary board**, never a single scalar.
 
+Agent CLI views (prefer these; do **not** open full JSON reports): see [docs/agent-cli-workflows.md](../../../docs/agent-cli-workflows.md).
+
 ## Workflow (every non-trivial change)
 
 Copy and track:
@@ -28,10 +30,11 @@ Copy and track:
 ### 1. Baseline
 
 ```bash
-uv run py-code-metrics src/py_code_metrics > /tmp/pcm-before.json
+uv run py-code-metrics snapshot src/py_code_metrics -o /tmp/pcm-before.json
+# Optional small reads only — never open the snapshot file wholesale:
+uv run py-code-metrics board -f /tmp/pcm-before.json
+uv run py-code-metrics hotspots -f /tmp/pcm-before.json
 ```
-
-Skim `overall.complexity`, `overall.etspa.helpers_cores`, `overall.expression.leaves`, and `overall.hotspots` (unpaid only).
 
 ### 2. Implement
 
@@ -49,13 +52,21 @@ Match existing naming, typing, and test style. No drive-by refactors outside the
 uv run pytest -q
 uv run ruff check src tests && uv run ruff format src tests
 uv run pyrefly check
-uv run py-code-metrics src/py_code_metrics > /tmp/pcm-after.json
-uv run python scripts/compare_self_metrics.py /tmp/pcm-before.json /tmp/pcm-after.json
+uv run py-code-metrics snapshot src/py_code_metrics -o /tmp/pcm-after.json
+uv run py-code-metrics diff --json /tmp/pcm-before.json /tmp/pcm-after.json
 ```
 
 Gate must **PASS** (exit 0). Failures: rising `n_unpaid_hotspots`, or rising `max_v_poly` on an unpaid non-`reduction_like` symbol.
 
-Also check the board by eye:
+On failure or ambiguity (small payloads only):
+
+```bash
+uv run py-code-metrics hotspots -f /tmp/pcm-after.json
+uv run py-code-metrics board -f /tmp/pcm-after.json
+uv run py-code-metrics symbol -f /tmp/pcm-after.json some.module.fn
+```
+
+Also check the board by eye via `board` / `hotspots` (not the full snapshot):
 
 | Watch | Prefer |
 | --- | --- |
@@ -64,7 +75,7 @@ Also check the board by eye:
 | `expression.leaves` CAR | Not collapsing into mutation-heavy helpers |
 | New symbols in `hotspots` | None that you introduced unpaid |
 
-If you only touched tests under `tests/` with no `src/` changes, skip the self-analysis gate; still run pytest.
+If you only touched tests under `tests/` with no `src/` change, skip the self-analysis gate; still run pytest. For test quality: `uv run py-code-metrics tests . --delta`.
 
 ### 4. Keep / tweak / roll back
 
@@ -115,6 +126,7 @@ Stop iterating when every remaining top unpaid hotspot is one of:
 
 ## References
 
+- Agent CLI workflows & payload metrics: [docs/agent-cli-workflows.md](../../../docs/agent-cli-workflows.md)
 - Board semantics & flags: [README.md](../../../README.md)
 - Historical rounds & feedback: [docs/metrics-iteration-log.md](../../../docs/metrics-iteration-log.md)
 - Anti-patterns detail: [reference.md](reference.md)
