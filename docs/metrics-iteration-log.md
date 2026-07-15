@@ -18,6 +18,7 @@ only restate what shipped have drifted off-purpose (see skill
 | 2 | `add5082` (P0 tests) + `1446e9b` (CS3) | `/tmp/pcm-self-before.json` → `/tmp/pcm-iter-final.json` | Oracle cleanup; paid extracts; stop rule |
 | 3 | `5ee2701` (dashboard hardening) | `/tmp/pcm-round3-before.json` → `/tmp/pcm-round3-after.json` | Implements Round 2 product feedback |
 | 4 | P1 SUT + coverage ingest | `/tmp/pcm-p1-before.json` → `/tmp/pcm-p1-after.json` | `test_sut` / `test_coverage` / `--delta`; gate PASS |
+| 7 | post-LTR inline (`compare` merge) | `/tmp/pcm-before-refactor.json` → `/tmp/pcm-after-ltr-inline.json` | Length-budget dust hunt after statements gate removal |
 
 ### Feedback tracker (Round 2 → status)
 
@@ -407,4 +408,39 @@ First draft raised unpaid hotspots 10→17 (`_apply_delta_filter`, several SFC h
 **Quality:** ending flat (`n_unpaid_hotspots` 10→10, unpaid max still 19) with higher `helpers_cores.sum_S` is the desired shape for a feature drop: new paid sharing, no new unpaid spaghetti.
 
 **Mislead risk:** a gate that only checked `max_v_poly` would have PASS’d the dusty first draft (max held at 19 while unpaid count spiked). Unpaid-hotspot count remains the higher-signal primary fail for feature modules.
+
+---
+
+## Round 7 — post-LTR unpaid inline pass (2026-07-13)
+
+**Intent:** After removing `Thresholds.statements` (soft ~50), hunt F=1 unpaid helpers that looked like length-budget shards and re-inline where healthy.
+**Snapshots:** `/tmp/pcm-before-refactor.json` → `/tmp/pcm-after-ltr-inline.json`
+**Gate:** PASS (`diff --json`)
+
+### Board (evidence)
+
+| Metric | Before | After | Δ |
+| --- | ---: | ---: | ---: |
+| `n_unpaid_hotspots` | 10 | **10** | 0 |
+| `max_v_poly` | 19 | **19** | 0 |
+| `helpers_cores.sum_S` | 1392.7 | **1442.7** | +50 |
+| `helpers_cores.frac_fan_in_le_1` | 0.539 | **0.535** | −0.004 |
+| callable count | 323 | **320** | −3 |
+
+### Metrics-caused moves
+
+- **Kept (partial merge):** `compare.py` five F=1 collect/gate helpers → two named leaf steps (`_append_board_lines`, `_check_gates`). Parent `compare` stayed nest=1 / cog=2; neither step entered hotspots. Net −3 symbols, slightly healthier `helpers_cores` fracs.
+- **Rejected full inline of `compare`:** dumping all five into `compare` made it unpaid hotspot (`v_poly=23`, `cognitive=25`). Gate FAIL 10→12. Long flat bodies are fine under LTR **only while nest/cognitive/`v_poly` stay green** — length removal is not a license to gather every branch into one leaf.
+- **Rejected bind merge:** inlining `_bind_ann_local` / `_bind_assign_local` into `_local_class_map` created nest=4 / cog≈23–26 hotspot. Flatten-with-continues still left cognitive over gate. Restored the two helpers (intentional vocabulary / cliff cut, not LOC dust).
+- **Left alone on purpose:** `analyze_*` pipeline steps, resolve design-bound hotspots, cohesion/oracle extracts, CLI `_cmd_*` handlers.
+
+### Metrics feedback
+
+- **Guided well:** unpaid-hotspot gate blocked the naive “statements gone ⇒ merge everything” reading of LTR. Forced the same Round 2 lesson: reject unpaid relocation *and* keep named subproblems that cut a leaf’s cognitive cliff — here as two compare steps instead of five micro-shards or one god leaf.
+- **Misled / noisy:** anticipating that *most* F=1 unpaid helpers were statements-budget dust overstated the case. Many remaining F=1 helpers are leaf vocabulary or cliff cuts; `frac_fan_in_le_1` alone does not distinguish them from LOC shards. Wasted probe: bind-pair inline.
+- **Product change?** **None.** Reintroducing a statements/LOC soft gate (or a length-adjacent “inline when parent stmts>N” rule) would recreate the Goodhart path `7b4beda` closed. Existing nest / cognitive / `v_poly` + unpaid hotspot board is sufficient to stop dangerous re-inlines. PIF/DOU stay separate research.
+
+### Verdict
+
+Removing the statements threshold correctly removed a fragmentation incentive, but did not open a free “merge all F=1” season — complementary complexity gates still discipline large flat assemblers. The useful metrics-caused work was collapsing five compare micro-helpers into two named leaf steps (modest fragmentation win, gate flat). The useful rejection was rolling back full compare inline and the SFC bind merge after they raised unpaid hotspots. No new size metric is warranted; the suite already said “no” when length optimism outran cognitive/`v_poly`.
 
