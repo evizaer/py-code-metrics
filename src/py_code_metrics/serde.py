@@ -18,6 +18,13 @@ from typing import Any, Literal, Union, get_args, get_origin, get_type_hints
 
 _MISSING = object()
 
+_EMPTY_PRIMITIVE: dict[Any, Any] = {
+    int: 0,
+    float: 0.0,
+    bool: False,
+    str: "",
+}
+
 
 def from_mapping(cls: type[Any], data: Any) -> Any:
     """Build a dataclass instance from a mapping (or ``{}`` if *data* is not a dict)."""
@@ -65,46 +72,18 @@ def to_mapping(obj: Any) -> dict[str, Any]:
 
 def coerce(value: Any, typ: Any, default: Any = None) -> Any:
     """Coerce *value* toward *typ* (primitives, optionals, lists, nested dataclasses)."""
-    origin = get_origin(typ)
     if typ is Any:
         return value
-
+    origin = get_origin(typ)
     if _is_union(origin):
-        args = [a for a in get_args(typ) if a is not type(None)]
-        if value is None:
-            return None
-        if not args:
-            return value
-        return coerce(value, args[0], default)
-
+        return _coerce_union(value, typ, default)
     if origin is Literal:
-        if value is None:
-            return default
-        return value
-
+        return default if value is None else value
     if origin is list:
-        elem = get_args(typ)[0] if get_args(typ) else Any
-        if not isinstance(value, list):
-            return [] if default is None else default
-        return [coerce(item, elem, _empty(elem)) for item in value]
-
+        return _coerce_list(value, typ, default)
     if is_dataclass(typ):
         return from_mapping(typ, value)
-
-    if typ is int:
-        return _as_int(value, default if isinstance(default, int) else 0)
-    if typ is float:
-        return _as_float(value, default if isinstance(default, float) else 0.0)
-    if typ is bool:
-        if value is None:
-            return default if isinstance(default, bool) else False
-        return bool(value)
-    if typ is str:
-        if value is None:
-            return default if isinstance(default, str) else ""
-        return str(value)
-
-    return value if value is not None else default
+    return _primitive(typ, value, default)
 
 
 def serialize(value: Any) -> Any:
@@ -147,14 +126,45 @@ def _is_union(origin: Any) -> bool:
     return origin is Union or origin is UnionType
 
 
+def _non_none_args(typ: Any) -> list[Any]:
+    return [a for a in get_args(typ) if a is not type(None)]
+
+
+def _coerce_union(value: Any, typ: Any, default: Any) -> Any:
+    if value is None:
+        return None
+    args = _non_none_args(typ)
+    return coerce(value, args[0], default) if args else value
+
+
+def _coerce_list(value: Any, typ: Any, default: Any) -> Any:
+    elem = get_args(typ)[0] if get_args(typ) else Any
+    if not isinstance(value, list):
+        return [] if default is None else default
+    return [coerce(item, elem, _empty(elem)) for item in value]
+
+
+def _primitive(typ: Any, value: Any = _MISSING, default: Any = None) -> Any:
+    """Empty default when *value* is omitted; otherwise coerce a scalar."""
+    if value is _MISSING:
+        return _EMPTY_PRIMITIVE.get(typ)
+    if typ is int:
+        return _as_int(value, default if isinstance(default, int) else 0)
+    if typ is float:
+        return _as_float(value, default if isinstance(default, float) else 0.0)
+    if typ is bool:
+        return (default if isinstance(default, bool) else False) if value is None else bool(value)
+    if typ is str:
+        return (default if isinstance(default, str) else "") if value is None else str(value)
+    return value if value is not None else default
+
+
 def _empty(typ: Any) -> Any:
     origin = get_origin(typ)
     if _is_union(origin):
-        args = [a for a in get_args(typ) if a is not type(None)]
-        if type(None) in get_args(typ) and not args:
-            return None
         if type(None) in get_args(typ):
             return None
+        args = _non_none_args(typ)
         return _empty(args[0]) if args else None
     if origin is list:
         return []
@@ -163,15 +173,7 @@ def _empty(typ: Any) -> Any:
         return args[0] if args else None
     if is_dataclass(typ):
         return from_mapping(typ, {})
-    if typ is int:
-        return 0
-    if typ is float:
-        return 0.0
-    if typ is bool:
-        return False
-    if typ is str:
-        return ""
-    return None
+    return _primitive(typ)
 
 
 def _as_int(value: Any, default: int = 0) -> int:
