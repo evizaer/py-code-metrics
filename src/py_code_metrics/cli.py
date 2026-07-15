@@ -15,12 +15,15 @@ from py_code_metrics.model import MetricsReport, TestMetricsReport
 from py_code_metrics.report import report_to_json
 from py_code_metrics.views import (
     board_view,
+    dou_view,
     findings_view,
     hotspots_view,
     symbol_view,
 )
 
-SUBCOMMANDS = frozenset({"diff", "board", "hotspots", "symbol", "snapshot", "analyze", "tests"})
+SUBCOMMANDS = frozenset(
+    {"diff", "board", "hotspots", "dou", "symbol", "snapshot", "analyze", "tests"}
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -30,7 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
         description=(
             "Compute anti-spaghetti structural metrics, or static test-quality "
             "(oracle/smell) metrics with --tests. Prefer subcommands "
-            "(board, hotspots, symbol, diff, snapshot, tests) for agent workflows."
+            "(board, hotspots, dou, symbol, diff, snapshot, tests) for agent workflows."
         ),
     )
     parser.add_argument(
@@ -91,11 +94,12 @@ def build_subcommand_parser() -> argparse.ArgumentParser:
     for name, help_text in (
         ("board", "Complementary rollups only"),
         ("hotspots", "Ranked unpaid hotspots"),
+        ("dou", "Ranked dict-overuse (structured-mapping) sites"),
         ("analyze", "Full hierarchical JSON report"),
     ):
         p = sub.add_parser(name, help=help_text)
         _add_report_source_args(p)
-        if name == "hotspots":
+        if name in {"hotspots", "dou"}:
             p.add_argument("--limit", type=int, default=None)
             _add_path_filter_args(p)
 
@@ -241,7 +245,7 @@ def _main_subcommand(argv: list[str]) -> int:
         return _cmd_tests(args)
     if command == "symbol":
         return _cmd_symbol(args)
-    if command in {"board", "hotspots", "analyze"}:
+    if command in {"board", "hotspots", "dou", "analyze"}:
         return _cmd_structural_view(args, command)
     print(f"error: unknown command: {command}", file=sys.stderr)
     return 2
@@ -308,7 +312,7 @@ def _cmd_tests(args: argparse.Namespace) -> int:
         sys.stdout.write(json.dumps(report.to_dict(), indent=args.indent) + "\n")
         return 0
     view = findings_view(report, limit=args.limit)
-    sys.stdout.write(json.dumps(view, indent=args.indent) + "\n")
+    sys.stdout.write(json.dumps(view.to_dict(), indent=args.indent) + "\n")
     return 0
 
 
@@ -322,7 +326,7 @@ def _cmd_symbol(args: argparse.Namespace) -> int:
     if view is None:
         print(f"error: symbol not found: {args.qname}", file=sys.stderr)
         return 2
-    sys.stdout.write(json.dumps(view, indent=args.indent) + "\n")
+    sys.stdout.write(json.dumps(view.to_dict(), indent=args.indent) + "\n")
     return 0
 
 
@@ -337,6 +341,13 @@ def _cmd_structural_view(args: argparse.Namespace, command: str) -> int:
         return 0
     if command == "board":
         view = board_view(report)
+    elif command == "dou":
+        path_filter = _resolve_path_filter(args, report)
+        view = dou_view(
+            report,
+            limit=getattr(args, "limit", None),
+            path_filter=path_filter,
+        )
     else:
         path_filter = _resolve_path_filter(args, report)
         view = hotspots_view(
@@ -344,7 +355,7 @@ def _cmd_structural_view(args: argparse.Namespace, command: str) -> int:
             limit=getattr(args, "limit", None),
             path_filter=path_filter,
         )
-    sys.stdout.write(json.dumps(view, indent=args.indent) + "\n")
+    sys.stdout.write(json.dumps(view.to_dict(), indent=args.indent) + "\n")
     return 0
 
 

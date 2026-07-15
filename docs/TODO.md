@@ -1,2 +1,2 @@
 - PIF. Pure-core impure-shell patterns? How do I force functions to be pure as often as possible and for the impure stuff to be relatively small and isolated? Maybe putting downward pressure on the number of functions covered by tests that have mocks, or the number of mocks, or the number of functions that are mocked?
-- DOU. Detecting dict overuse or a lack of structure in data?
+- DOU. Detecting dict overuse or a lack of structure in data? → **P0 implemented** (L1 + impact + views; no `diff` fail yet). Spec: [`dataclass-structure-enforcement.md`](dataclass-structure-enforcement.md). Remaining: P1 delta gate, half-shell / L2.

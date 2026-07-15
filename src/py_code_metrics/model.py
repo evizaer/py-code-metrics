@@ -110,6 +110,43 @@ class CallableMetrics(MappingMixin):
     dispatch_exempt: bool = False
     unpaid: bool = False
     reduction_like: bool = False
+    n_dou_sites: int = 0
+    dou_sites: list[DouSite] = field(default_factory=list)
+
+
+@dataclass
+class DouImpact(MappingMixin):
+    """Prioritization fields for a DOU candidate (sort keys, not a blended score)."""
+
+    fan_out_sites: int = 0
+    key_vocab_size: int = 0
+    cross_module: bool = False
+    on_public_api: bool = False
+    churn_hint: bool | None = field(default=None, metadata=_OMIT_NONE)
+
+
+@dataclass
+class DouSite(MappingMixin):
+    dou_kind: str = "record_annotation"
+    site: str = "param"  # param | return | attr
+    name: str | None = field(default=None, metadata=_OMIT_NONE)
+    annotation: str = ""
+    impact: DouImpact = field(default_factory=DouImpact)
+
+
+@dataclass
+class DouHotspotEntry(MappingMixin):
+    qualified_name: str
+    n_dou_sites: int = 0
+    annotation: str = ""
+    impact: DouImpact = field(default_factory=DouImpact)
+    path: str | None = field(default=None, metadata=_OMIT_NONE)
+
+
+@dataclass
+class DouBoard(MappingMixin):
+    n_dou_sites: int = 0
+    n_dou_callables: int = 0
 
 
 @dataclass
@@ -143,6 +180,7 @@ class ModuleRollup(MappingMixin):
     n_unpaid_v_poly_gt_15: int = 0
     n_unpaid_nesting_gt_3: int = 0
     n_unpaid_hotspots: int = 0
+    n_dou_sites: int = 0
     roles: RoleCounts = field(default_factory=RoleCounts)
 
 
@@ -244,13 +282,15 @@ class OverallReport(MappingMixin):
     etspa: EtspaOverall = field(default_factory=EtspaOverall)
     expression: ExpressionOverall = field(default_factory=ExpressionOverall)
     hotspots: list[HotspotEntry] = field(default_factory=list)
+    dou: DouBoard = field(default_factory=DouBoard)
+    dou_hotspots: list[DouHotspotEntry] = field(default_factory=list)
     roles: RoleCounts = field(default_factory=RoleCounts)
     imports: ImportsOverall = field(default_factory=ImportsOverall)
 
 
 @dataclass
 class MetricsReport(MappingMixin):
-    version: int = 1
+    version: int = 2
     tool: str = "py-code-metrics"
     input: ReportInput = field(default_factory=ReportInput)
     thresholds: Thresholds = field(default_factory=lambda: DEFAULT_THRESHOLDS)

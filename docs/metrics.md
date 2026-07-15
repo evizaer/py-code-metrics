@@ -6,7 +6,7 @@ Two report modes:
 
 | Mode | CLI | Focus |
 | --- | --- | --- |
-| Structural (default) | `py-code-metrics <path>` | Anti-spaghetti shape: complexity, reuse, expression style, cohesion, imports |
+| Structural (default) | `py-code-metrics <path>` | Anti-spaghetti shape: complexity, reuse, DOU, expression style, cohesion, imports |
 | Test quality | `py-code-metrics --tests <path>` | Oracle strength, smells, SUT linkage, optional coverage floors |
 
 The design premise is Goodhart pressure: optimizing any single axis invites a cheat that another axis should make worse. Soft thresholds appear under `thresholds` in JSON; they inform hotspot predicates and dashboards but are not exit codes yet.
@@ -21,6 +21,8 @@ Local complexity (cyclomatic, nesting, cognitive)
 Reuse accounting (fan-in, S / ETSPA)          ← stops “shatter into dust”
         ↕ tension ↕
 Polymorphic expansion (v_poly)               ← stops “Strategy as hidden switch”
+        ↕ tension ↕
+DOU (untyped structured mappings)            ← stops “simplify” via dict bags
         ↕ tension ↕
 Expression shape (CAR, LMD) on leaves        ← encourages orchestration over mutation
         ↕ tension ↕
@@ -242,6 +244,14 @@ Assignments include `=`, annotated assigns with values, and augmented assigns. H
 
 **Counter-balances.** **`v_poly`** alone as a hotspot trigger; `is_hotspot` ignores reduction-like when only `v_poly` exceeds the lenient gate.
 
+### `n_dou_sites` / `dou_sites` (DOU)
+
+**What it means.** Count (and detail list) of **L1 record-annotation** sites on the callable: parameters or return types that are untyped structured mappings (`dict[str, Any]`, bare `dict`, `Mapping[str, Any]`, `list[dict[…]]`, optional wrappers). Homogeneous indexes (`dict[str, int]`, `dict[str, MyDc]`) do **not** count. Wire-then-coerce (param only passed into a dataclass / `from_dict` / `model_validate`) is exempt. Each site carries an **impact** object: `fan_out_sites`, `key_vocab_size`, `cross_module`, `on_public_api`.
+
+**Why include it.** Propagates “prefer dataclasses for structured data” via the board on **any** analyzed tree—same pressure as unpaid hotspots for anti-spaghetti—without TypedDict as the recommended fix.
+
+**Counter-balances.** Unpaid fragmentation (do not split one bag into many F=1 dict builders); one-field wrappers that still hold `dict[str, Any]`; treating DOU as purity (PIF stays a separate axis).
+
 ### `dispatch_class` / `lcom4_gate_exempt` (class-level)
 
 **What they mean.** Class is an AST dispatcher; LCOM4 should not mandate a split. Emitted on class metrics.
@@ -318,6 +328,18 @@ Assignments include `=`, annotated assigns with values, and augmented assigns. H
 **Why include it.** Action queue for refactoring: complexity that has not earned reuse.
 
 **Counter-balances.** Ranking by raw `v_poly` alone (which would flag reduction leaves and paid cores).
+
+### DOU board (`overall.dou` / `overall.dou_hotspots` / module `n_dou_sites`)
+
+| Field | Meaning |
+| --- | --- |
+| `n_dou_sites` | Total L1 record-annotation sites in scope |
+| `n_dou_callables` | Callables with at least one DOU site |
+| `dou_hotspots[]` | Ranked candidates with annotation snippet + **impact** (`fan_out_sites`, `key_vocab_size`, `cross_module`, `on_public_api`) |
+
+**Why include them.** Agent action queue for introducing dataclasses; impact ranking beats random bag conversion. CLI: `py-code-metrics dou`.
+
+**Counter-balances.** Whole-package DOU as a hard gate (P0 is emit-only; P1 gates **delta paths** only). Homogeneous indexes and wire coerce stay green.
 
 ### Import graph (`overall.imports` / per-module `imports`)
 
@@ -483,4 +505,6 @@ Self-analysis gate script (`scripts/compare_self_metrics.py`) fails if `n_unpaid
 
 ## Not yet implemented
 
-Deferred from research notes (not in the current report): TCC, CBO, ATFD, God Class, RFC′, Martin package metrics, Halstead/ABC, layer contracts, and enforced CI exit codes beyond the optional self-compare script (P3).
+Deferred from research notes (not in the current report): TCC, CBO, ATFD, God Class, RFC′, Martin package metrics, Halstead/ABC, layer contracts, PIF, DOU P1 delta-path `diff` gate / L2 dict literals / half-shell attrs, and enforced CI exit codes beyond the optional self-compare script (P3).
+
+DOU **P0** (L1 annotations + impact + `dou` / board views; emit-only in `diff`) is implemented — see above and [`dataclass-structure-enforcement.md`](dataclass-structure-enforcement.md).

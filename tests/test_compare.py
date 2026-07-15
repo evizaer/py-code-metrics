@@ -79,3 +79,15 @@ def test_compare_max_v_poly_paid_not_fail():
     code, _lines, diff = compare(before, after)
     assert code == 0
     assert diff["pass"] is True
+
+
+def test_compare_dou_rise_emit_only_no_fail():
+    before = _minimal_report()
+    before["overall"]["dou"] = {"n_dou_sites": 1, "n_dou_callables": 1}
+    after = deepcopy(before)
+    after["overall"]["dou"] = {"n_dou_sites": 5, "n_dou_callables": 3}
+    code, lines, diff = compare(before, after)
+    assert code == 0
+    assert diff["pass"] is True
+    assert diff["deltas"]["n_dou_sites"] == [1, 5]
+    assert any("n_dou_sites" in line for line in lines)

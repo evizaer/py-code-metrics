@@ -6,7 +6,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from py_code_metrics.dashboard import (
+    aggregate_dou_impact,
     class_is_ast_dispatcher,
+    dou_hotspot_entry,
+    dou_impact_sort_key,
     etspa_board,
     expression_board,
     hotspot_entry,
@@ -19,6 +22,7 @@ from py_code_metrics.discover import discover_python_files
 from py_code_metrics.metrics.call_graph import CallGraph, collect_calls_in_function
 from py_code_metrics.metrics.cohesion import compute_lcom4, compute_wmc
 from py_code_metrics.metrics.complexity import analyze_function_body, effective_param_count
+from py_code_metrics.metrics.dou import analyze_dou
 from py_code_metrics.metrics.etspa import (
     body_token_count,
     call_site_token_cost,
@@ -34,6 +38,8 @@ from py_code_metrics.model import (
     CallableMetrics,
     ClassMetrics,
     ComplexityBoard,
+    DouBoard,
+    DouHotspotEntry,
     EtspaOverall,
     ExpressionOverall,
     HelpersCoresEtspa,
@@ -77,8 +83,10 @@ class _CallableStats:
     n_unpaid_v_poly_gt_15: int
     n_unpaid_nesting_gt_3: int
     n_unpaid_hotspots: int
+    n_dou_sites: int
     roles: RoleCounts
     hotspots: list[HotspotEntry]
+    dou_hotspots: list[DouHotspotEntry]
     helpers_cores_etspa: HelpersCoresEtspa
     leaves_expression: LeavesExpressionBoard
     mean_cvr: float
@@ -120,9 +128,7 @@ def analyze_path(root: Path, *, thresholds: Thresholds | None = None) -> Metrics
         input=ReportInput(
             root=str(root),
             files_analyzed=len(parsed),
-            files_skipped=[
-                SkippedFileEntry(path=str(s.path), reason=s.reason) for s in skipped
-            ],
+            files_skipped=[SkippedFileEntry(path=str(s.path), reason=s.reason) for s in skipped],
         ),
         thresholds=thresholds,
         overall=_overall(modules_out, callable_metrics, index, import_graph, thresholds),
@@ -147,7 +153,7 @@ def _collect_call_costs(
 def _score_callable(
     index: SymbolIndex,
     call_graph: CallGraph,
-    override_sets: dict,
+    override_sets: dict[tuple[str, str], set[str]],
     call_costs: dict[str, list[int]],
     dispatcher_classes: set[str],
     qname: str,
@@ -193,6 +199,17 @@ def _score_callable(
         and info.class_qname in dispatcher_classes
         and is_dispatch_method_name(info.name)
     )
+    caller_modules = {
+        index.callables[caller].module
+        for caller in call_graph.fan_in_sites.get(qname, [])
+        if caller in index.callables and caller != qname
+    }
+    dou = analyze_dou(
+        info,
+        index=index,
+        fan_in_ext=F_ext,
+        caller_modules=caller_modules,
+    )
     metrics = CallableMetrics(
         name=info.name,
         qualified_name=qname,
@@ -223,6 +240,8 @@ def _score_callable(
         local_stores=expr.local_stores,
         comprehension_count=expr.comprehension_count,
         dispatch_exempt=dispatch_exempt,
+        n_dou_sites=dou.n_sites,
+        dou_sites=dou.sites,
     )
     metrics.reduction_like = is_reduction_like(metrics)
     metrics.unpaid = is_unpaid(metrics)
@@ -316,6 +335,7 @@ def _rollup(
         n_unpaid_v_poly_gt_15=stats.n_unpaid_v_poly_gt_15,
         n_unpaid_nesting_gt_3=stats.n_unpaid_nesting_gt_3,
         n_unpaid_hotspots=stats.n_unpaid_hotspots,
+        n_dou_sites=stats.n_dou_sites,
         roles=stats.roles,
     )
 
@@ -369,6 +389,11 @@ def _overall(
         leaves=stats.leaves_expression,
     )
     overall.hotspots = stats.hotspots
+    overall.dou = DouBoard(
+        n_dou_sites=stats.n_dou_sites,
+        n_dou_callables=len(stats.dou_hotspots),
+    )
+    overall.dou_hotspots = stats.dou_hotspots
     return overall
 
 
@@ -383,9 +408,11 @@ def _callable_stats(callables: list[CallableMetrics], thresholds: Thresholds) ->
     n_s_le_0 = n_f_le_1 = 0
     max_v = max_n = 0
     n_v = n_nest = n_unpaid_v = n_unpaid_nest = 0
+    n_dou_sites = 0
     helper_core: list[CallableMetrics] = []
     leaves: list[CallableMetrics] = []
     hotspot_cms: list[CallableMetrics] = []
+    dou_cms: list[CallableMetrics] = []
 
     for c in callables:
         roles.bump(c.role)
@@ -395,6 +422,7 @@ def _callable_stats(callables: list[CallableMetrics], thresholds: Thresholds) ->
         sum_car += c.car
         sum_lmd += c.lmd
         sum_cvr += c.cvr
+        n_dou_sites += c.n_dou_sites
         if c.S <= 0:
             n_s_le_0 += 1
         if c.fan_in_ext <= 1:
@@ -419,9 +447,19 @@ def _callable_stats(callables: list[CallableMetrics], thresholds: Thresholds) ->
             helper_core.append(c)
         if is_hotspot(c, thresholds):
             hotspot_cms.append(c)
+        if c.n_dou_sites > 0:
+            dou_cms.append(c)
 
     hotspot_cms.sort(key=lambda c: (-c.v_poly, -c.cognitive, -c.max_nesting, c.qualified_name))
     hotspots = [hotspot_entry(c) for c in hotspot_cms]
+
+    dou_cms.sort(
+        key=lambda c: (
+            *tuple(-v for v in dou_impact_sort_key(aggregate_dou_impact(c.dou_sites))),
+            c.qualified_name,
+        )
+    )
+    dou_hotspots = [dou_hotspot_entry(c) for c in dou_cms]
 
     return _CallableStats(
         sum_S=sum_S,
@@ -438,8 +476,10 @@ def _callable_stats(callables: list[CallableMetrics], thresholds: Thresholds) ->
         n_unpaid_v_poly_gt_15=n_unpaid_v,
         n_unpaid_nesting_gt_3=n_unpaid_nest,
         n_unpaid_hotspots=len(hotspots),
+        n_dou_sites=n_dou_sites,
         roles=roles,
         hotspots=hotspots,
+        dou_hotspots=dou_hotspots,
         helpers_cores_etspa=etspa_board(helper_core),
         leaves_expression=expression_board(leaves),
         mean_cvr=sum_cvr / n,

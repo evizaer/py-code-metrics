@@ -17,6 +17,7 @@ class DiffDeltas:
     max_v_poly: list[int]
     helpers_cores_sum_S: list[float]
     helpers_cores_frac_fan_in_le_1: list[float]
+    n_dou_sites: list[int]
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -24,6 +25,7 @@ class DiffDeltas:
             "max_v_poly": self.max_v_poly,
             "helpers_cores.sum_S": self.helpers_cores_sum_S,
             "helpers_cores.frac_fan_in_le_1": self.helpers_cores_frac_fan_in_le_1,
+            "n_dou_sites": self.n_dou_sites,
         }
 
 
@@ -101,6 +103,15 @@ def _append_board_lines(
     bh, ah = be.helpers_cores, ae.helpers_cores
     _row(lines, "helpers_cores.sum_S", bh.sum_S, ah.sum_S)
     _row(lines, "helpers_cores.frac_fan_in_le_1", bh.frac_fan_in_le_1, ah.frac_fan_in_le_1)
+
+    lines.append("DOU (emit-only; not gated)")
+    _row(lines, "n_dou_sites", before.overall.dou.n_dou_sites, after.overall.dou.n_dou_sites)
+    _row(
+        lines,
+        "n_dou_callables",
+        before.overall.dou.n_dou_callables,
+        after.overall.dou.n_dou_callables,
+    )
 
     before_hs, after_hs = hotspot_names(before), hotspot_names(after)
     added = sorted(after_hs - before_hs)
@@ -181,6 +192,7 @@ def compare(
             max_v_poly=[bc.max_v_poly, ac.max_v_poly],
             helpers_cores_sum_S=[bh.sum_S, ah.sum_S],
             helpers_cores_frac_fan_in_le_1=[bh.frac_fan_in_le_1, ah.frac_fan_in_le_1],
+            n_dou_sites=[before_r.overall.dou.n_dou_sites, after_r.overall.dou.n_dou_sites],
         ),
         hotspots_added=added,
         hotspots_removed=removed,

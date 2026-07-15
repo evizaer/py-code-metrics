@@ -61,6 +61,7 @@ def main() -> int:
     after_path.write_text(full, encoding="utf-8")
 
     # Prefer real subcommands; fall back to in-process views / script.
+    from py_code_metrics.model import MetricsReport, TestMetricsReport
     from py_code_metrics.views import (
         board_view,
         findings_view,
@@ -68,16 +69,19 @@ def main() -> int:
         symbol_view,
     )
 
+    report = MetricsReport.from_dict(data)
+    tests_report = TestMetricsReport.from_dict(tests_data)
+
     board_out = _try_cli("board", "-f", str(before_path))
     if board_out is None:
-        board_out = json.dumps(board_view(data), indent=2) + "\n"
+        board_out = json.dumps(board_view(report).to_dict(), indent=2) + "\n"
         board_src = "simulated"
     else:
         board_src = "cli"
 
     hot_out = _try_cli("hotspots", "-f", str(before_path))
     if hot_out is None:
-        hot_out = json.dumps(hotspots_view(data), indent=2) + "\n"
+        hot_out = json.dumps(hotspots_view(report).to_dict(), indent=2) + "\n"
         hot_src = "simulated"
     else:
         hot_src = "cli"
@@ -89,8 +93,8 @@ def main() -> int:
     if qname:
         sym_out = _try_cli("symbol", "-f", str(before_path), qname)
         if sym_out is None:
-            view = symbol_view(data, qname)
-            sym_out = json.dumps(view, indent=2) + "\n" if view else ""
+            view = symbol_view(report, qname)
+            sym_out = json.dumps(view.to_dict(), indent=2) + "\n" if view else ""
             sym_src = "simulated"
         else:
             sym_src = "cli"
@@ -107,13 +111,13 @@ def main() -> int:
 
     tests_findings_out = _try_cli("tests", str(ROOT))
     if tests_findings_out is None:
-        tests_findings_out = json.dumps(findings_view(tests_data), indent=2) + "\n"
+        tests_findings_out = json.dumps(findings_view(tests_report).to_dict(), indent=2) + "\n"
         tests_src = "simulated"
     else:
         # If CLI still emits full tree (legacy only), detect and simulate findings.
         parsed = json.loads(tests_findings_out)
         if parsed.get("view") != "tests_findings":
-            tests_findings_out = json.dumps(findings_view(tests_data), indent=2) + "\n"
+            tests_findings_out = json.dumps(findings_view(tests_report).to_dict(), indent=2) + "\n"
             tests_src = "simulated"
         else:
             tests_src = "cli"

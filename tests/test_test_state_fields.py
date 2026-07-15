@@ -56,7 +56,7 @@ def test_node_nested_iterable_labels():
 
 def test_findings_view_includes_unchecked_state():
     report = analyze_tests_path(STATEFUL)
-    view = findings_view(report)
+    view = findings_view(report).to_dict()
     assert "mean_state_field_coverage" in view["overall"]
     kinds = {f.get("kind") for f in view["findings"]}
     # Node may have uncovered next / next+ → unchecked_state_field rows

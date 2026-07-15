@@ -197,9 +197,7 @@ def _cosmic_outcome(result: dict[str, Any] | None) -> str | None:
     return result.get("test_outcome") or result.get("outcome")
 
 
-def _survivor_from_cosmic(
-    item: dict[str, Any], result: dict[str, Any] | None
-) -> MutationSurvivor:
+def _survivor_from_cosmic(item: dict[str, Any], result: dict[str, Any] | None) -> MutationSurvivor:
     merged = {**item, **(result or {})}
     line = merged.get("line_number")
     if line is None:

@@ -9,6 +9,7 @@ from typing import Any
 from py_code_metrics.model import (
     CallableMetrics,
     ClassMetrics,
+    DouHotspotEntry,
     HotspotEntry,
     MetricsReport,
     TestCaseMetrics,
@@ -26,6 +27,7 @@ class BoardView:
     complexity: dict[str, Any] = field(default_factory=dict)
     etspa: dict[str, Any] = field(default_factory=dict)
     expression: dict[str, Any] = field(default_factory=dict)
+    dou: dict[str, Any] = field(default_factory=dict)
     roles: dict[str, int] = field(default_factory=dict)
     imports: dict[str, int] = field(default_factory=dict)
 
@@ -42,11 +44,33 @@ class HotspotsView:
     filter: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        out = {
+        out: dict[str, Any] = {
             "version": self.version,
             "view": self.view,
             "n_unpaid_hotspots": self.n_unpaid_hotspots,
             "hotspots": list(self.hotspots),
+        }
+        if self.filter is not None:
+            out["filter"] = self.filter
+        return out
+
+
+@dataclass
+class DouView:
+    version: int
+    view: str = "dou"
+    n_dou_sites: int = 0
+    n_dou_callables: int = 0
+    dou_hotspots: list[dict[str, Any]] = field(default_factory=list)
+    filter: dict[str, Any] | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "version": self.version,
+            "view": self.view,
+            "n_dou_sites": self.n_dou_sites,
+            "n_dou_callables": self.n_dou_callables,
+            "dou_hotspots": list(self.dou_hotspots),
         }
         if self.filter is not None:
             out["filter"] = self.filter
@@ -109,16 +133,17 @@ def iter_classes(report: MetricsReport) -> Iterator[tuple[str | None, ClassMetri
             yield mod.path, cls
 
 
-def board_view(report: MetricsReport) -> dict[str, Any]:
+def board_view(report: MetricsReport) -> BoardView:
     overall = report.overall
     return BoardView(
         version=report.version,
         complexity=overall.complexity.to_dict(),
         etspa={"helpers_cores": overall.etspa.helpers_cores.to_dict()},
         expression={"leaves": overall.expression.leaves.to_dict()},
+        dou=overall.dou.to_dict(),
         roles=overall.roles.to_dict(),
         imports={"cycle_count": overall.imports.cycle_count},
-    ).to_dict()
+    )
 
 
 def hotspots_view(
@@ -126,15 +151,13 @@ def hotspots_view(
     *,
     limit: int | None = None,
     path_filter: set[str] | None = None,
-) -> dict[str, Any]:
+) -> HotspotsView:
     hotspots = list(report.overall.hotspots)
     paths = callable_paths(report)
     if path_filter:
         normalized = {_norm_path(p) for p in path_filter}
         hotspots = [
-            h
-            for h in hotspots
-            if _path_in_filter(paths.get(h.qualified_name, ""), normalized)
+            h for h in hotspots if _path_in_filter(paths.get(h.qualified_name, ""), normalized)
         ]
     enriched = [_with_path(h, paths) for h in hotspots]
     if limit is not None:
@@ -152,10 +175,45 @@ def hotspots_view(
                 "n_unpaid_hotspots remains the corpus-level count."
             ),
         }
-    return view.to_dict()
+    return view
 
 
-def symbol_view(report: MetricsReport, qname: str) -> dict[str, Any] | None:
+def dou_view(
+    report: MetricsReport,
+    *,
+    limit: int | None = None,
+    path_filter: set[str] | None = None,
+) -> DouView:
+    entries = list(report.overall.dou_hotspots)
+    paths = callable_paths(report)
+    if path_filter:
+        normalized = {_norm_path(p) for p in path_filter}
+        entries = [
+            e
+            for e in entries
+            if _path_in_filter(paths.get(e.qualified_name, e.path or ""), normalized)
+        ]
+    enriched = [_with_dou_path(e, paths) for e in entries]
+    if limit is not None:
+        enriched = enriched[:limit]
+    view = DouView(
+        version=report.version,
+        n_dou_sites=report.overall.dou.n_dou_sites,
+        n_dou_callables=report.overall.dou.n_dou_callables,
+        dou_hotspots=[e.to_dict() for e in enriched],
+    )
+    if path_filter is not None:
+        view.filter = {
+            "paths": sorted(path_filter),
+            "note": (
+                "DOU hotspot list filtered to listed paths; "
+                "n_dou_sites / n_dou_callables remain corpus-level counts."
+            ),
+        }
+    return view
+
+
+def symbol_view(report: MetricsReport, qname: str) -> SymbolView | None:
     found = find_symbol(report, qname)
     if found is None:
         return None
@@ -165,14 +223,14 @@ def symbol_view(report: MetricsReport, qname: str) -> dict[str, Any] | None:
         kind=kind,
         path=path,
         symbol=payload.to_dict(),
-    ).to_dict()
+    )
 
 
 def findings_view(
     report: TestMetricsReport,
     *,
     limit: int | None = None,
-) -> dict[str, Any]:
+) -> FindingsView:
     findings: list[dict[str, Any]] = []
     for mod in report.modules:
         for t in mod.tests:
@@ -220,7 +278,7 @@ def findings_view(
             "mean_state_field_coverage": overall.mean_state_field_coverage,
             "uncovered_state_field_count": overall.uncovered_state_field_count,
         },
-    ).to_dict()
+    )
 
 
 def find_symbol(
@@ -274,6 +332,18 @@ def _with_path(hotspot: HotspotEntry, paths: dict[str, str]) -> HotspotEntry:
             path=paths[hotspot.qualified_name],
         )
     return hotspot
+
+
+def _with_dou_path(entry: DouHotspotEntry, paths: dict[str, str]) -> DouHotspotEntry:
+    if entry.path is None and entry.qualified_name in paths:
+        return DouHotspotEntry(
+            qualified_name=entry.qualified_name,
+            n_dou_sites=entry.n_dou_sites,
+            annotation=entry.annotation,
+            impact=entry.impact,
+            path=paths[entry.qualified_name],
+        )
+    return entry
 
 
 def _norm_path(path: str) -> str:

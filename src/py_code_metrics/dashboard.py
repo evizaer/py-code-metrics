@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from py_code_metrics.model import (
     CallableMetrics,
+    DouHotspotEntry,
+    DouImpact,
+    DouSite,
     HelpersCoresEtspa,
     HotspotEntry,
     LeavesExpressionBoard,
@@ -96,6 +99,43 @@ def hotspot_entry(c: CallableMetrics) -> HotspotEntry:
         unpaid=True,
         reduction_like=c.reduction_like,
         dispatch_exempt=c.dispatch_exempt,
+    )
+
+
+def dou_impact_sort_key(impact: DouImpact) -> tuple:
+    """Higher impact first: cross-module, fan-out, key vocab, public API."""
+    return (
+        int(impact.cross_module),
+        impact.fan_out_sites,
+        impact.key_vocab_size,
+        int(impact.on_public_api),
+    )
+
+
+def aggregate_dou_impact(sites: list[DouSite]) -> DouImpact:
+    if not sites:
+        return DouImpact()
+    return DouImpact(
+        fan_out_sites=max(s.impact.fan_out_sites for s in sites),
+        key_vocab_size=max(s.impact.key_vocab_size for s in sites),
+        cross_module=any(s.impact.cross_module for s in sites),
+        on_public_api=any(s.impact.on_public_api for s in sites),
+    )
+
+
+def dou_hotspot_entry(c: CallableMetrics, path: str | None = None) -> DouHotspotEntry:
+    impact = aggregate_dou_impact(c.dou_sites)
+    primary = max(
+        c.dou_sites,
+        key=lambda s: (*dou_impact_sort_key(s.impact), s.annotation),
+        default=None,
+    )
+    return DouHotspotEntry(
+        qualified_name=c.qualified_name,
+        n_dou_sites=c.n_dou_sites,
+        annotation=primary.annotation if primary is not None else "",
+        impact=impact,
+        path=path,
     )
 
 

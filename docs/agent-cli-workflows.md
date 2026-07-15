@@ -23,8 +23,9 @@ Keep today’s default (`py-code-metrics <path>` → full JSON) for compatibilit
 
 | Command | Purpose | Default payload |
 | --- | --- | --- |
-| `board <path>` | Complementary rollups only | `complexity`, `etspa.helpers_cores`, `expression.leaves`, `roles`, import `cycle_count` |
+| `board <path>` | Complementary rollups only | `complexity`, `etspa.helpers_cores`, `expression.leaves`, `dou`, `roles`, import `cycle_count` |
 | `hotspots <path>` | Ranked unpaid debt | Hotspot list + counts; no per-module trees |
+| `dou <path>` | Ranked dict-overuse sites | `n_dou_sites`, impact-ranked `dou_hotspots[]` |
 | `symbol <path> <qname>` | Single callable (or class) | That symbol’s metrics + light neighbors (callers/callees counts or names) |
 | `diff <before> <after>` | Gate + board delta | Text summary for humans; JSON mode for agents; exit `1` on regression |
 | `snapshot <path> -o FILE` | Persist full report once | Write full JSON; subsequent views read `-f FILE` |
@@ -239,11 +240,12 @@ Compact, versioned envelopes (illustrative):
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "view": "board",
   "complexity": {},
   "etspa": {"helpers_cores": {}},
   "expression": {"leaves": {}},
+  "dou": {"n_dou_sites": 0, "n_dou_callables": 0},
   "roles": {},
   "imports": {"cycle_count": 0}
 }
@@ -253,10 +255,22 @@ Compact, versioned envelopes (illustrative):
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "view": "hotspots",
   "n_unpaid_hotspots": 0,
   "hotspots": []
+}
+```
+
+**`dou`**
+
+```json
+{
+  "version": 2,
+  "view": "dou",
+  "n_dou_sites": 0,
+  "n_dou_callables": 0,
+  "dou_hotspots": []
 }
 ```
 
@@ -268,7 +282,11 @@ Compact, versioned envelopes (illustrative):
   "view": "diff",
   "pass": true,
   "failures": [],
-  "deltas": {},
+  "deltas": {
+    "n_unpaid_hotspots": [0, 0],
+    "max_v_poly": [0, 0],
+    "n_dou_sites": [0, 0]
+  },
   "hotspots_added": [],
   "hotspots_removed": []
 }

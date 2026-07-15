@@ -13,7 +13,7 @@ def test_e2e_sample_pkg():
     report = analyze_path(FIXTURE)
     d = report.to_dict()
 
-    assert d["version"] == 1
+    assert d["version"] == 2
     assert d["tool"] == "py-code-metrics"
     assert d["input"]["files_analyzed"] >= 3
     assert d["overall"]["totals"]["modules"] >= 3

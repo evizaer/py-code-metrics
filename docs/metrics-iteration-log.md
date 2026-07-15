@@ -444,3 +444,32 @@ First draft raised unpaid hotspots 10→17 (`_apply_delta_filter`, several SFC h
 
 Removing the statements threshold correctly removed a fragmentation incentive, but did not open a free “merge all F=1” season — complementary complexity gates still discipline large flat assemblers. The useful metrics-caused work was collapsing five compare micro-helpers into two named leaf steps (modest fragmentation win, gate flat). The useful rejection was rolling back full compare inline and the SFC bind merge after they raised unpaid hotspots. No new size metric is warranted; the suite already said “no” when length optimism outran cognitive/`v_poly`.
 
+---
+
+## Round 8 — DOU P0 (dict-overuse L1) (2026-07-14)
+
+**Intent:** Ship DOU as a complementary axis: L1 record-annotation detection, impact ranking, `board`/`dou`/`symbol` surfaces; `diff` emits `n_dou_sites` only (no fail). Report `version` → 2.
+**Snapshots:** `/tmp/pcm-before.json` → `/tmp/pcm-after2.json`
+**Gate:** PASS (`diff --json`); unpaid hotspots 10→10, max_v_poly 19→19
+
+### Board (evidence)
+
+| Metric | Before | After | Δ |
+| --- | ---: | ---: | ---: |
+| `n_unpaid_hotspots` | 10 | **10** | 0 |
+| `max_v_poly` | 19 | **19** | 0 |
+| `dou.n_dou_sites` | *(absent→0)* | **23** | first measurement |
+| `helpers_cores.sum_S` | 1644 | **2310** | +666 (new paid helpers in DOU/analyze) |
+
+### Metrics-caused moves
+
+- **Kept:** view builders return `BoardView` / `HotspotsView` / `DouView` / … dataclasses; CLI serializes at the edge — cleared ~6 false “JSON return bag” DOU sites on code we touched.
+- **Left as honest DOU debt:** serde/coverage/mutation ingest (`dict[str, Any]` wire blobs), `analyze_tests` optional-signal snapshots — wire/coerce campaigns, not this PR’s unpaid-hotspot set.
+- **Emit-only DOU in `diff`:** rising `n_dou_sites` does not fail (P0). P1 will gate delta paths only.
+
+### Metrics feedback
+
+- **Guided well:** complementary unpaid-hotspot gate stayed flat while adding a new axis; impact sort surfaces coverage/serde bags over random locals.
+- **Expected noise:** first `n_dou_sites` delta vs pre-DOU snapshots is 0→N (defaults), not a regression signal until both sides are v2.
+- **Product next:** P1 delta-path DOU gate; optional half-shell / L2; dogfood high-impact ingest bags into dataclasses.
+
