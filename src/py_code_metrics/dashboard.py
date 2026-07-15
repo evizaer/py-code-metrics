@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any
-
-from py_code_metrics.model import CallableMetrics, Thresholds
+from py_code_metrics.model import (
+    CallableMetrics,
+    HelpersCoresEtspa,
+    HotspotEntry,
+    LeavesExpressionBoard,
+    Thresholds,
+)
 from py_code_metrics.resolve import ClassInfo, ModuleInfo, SymbolIndex
 
 DISPATCH_BASE_SUFFIXES = frozenset({"NodeVisitor", "NodeTransformer"})
@@ -80,19 +84,19 @@ def is_hotspot(c: CallableMetrics, thresholds: Thresholds) -> bool:
     return c.v_poly > thresholds.v_poly_lenient and not c.reduction_like
 
 
-def hotspot_entry(c: CallableMetrics) -> dict[str, Any]:
-    return {
-        "qualified_name": c.qualified_name,
-        "v_poly": c.v_poly,
-        "nesting": c.max_nesting,
-        "cognitive": c.cognitive,
-        "fan_in_ext": c.fan_in_ext,
-        "S": c.S,
-        "role": c.role,
-        "unpaid": True,
-        "reduction_like": c.reduction_like,
-        "dispatch_exempt": c.dispatch_exempt,
-    }
+def hotspot_entry(c: CallableMetrics) -> HotspotEntry:
+    return HotspotEntry(
+        qualified_name=c.qualified_name,
+        v_poly=c.v_poly,
+        nesting=c.max_nesting,
+        cognitive=c.cognitive,
+        fan_in_ext=c.fan_in_ext,
+        S=c.S,
+        role=c.role,
+        unpaid=True,
+        reduction_like=c.reduction_like,
+        dispatch_exempt=c.dispatch_exempt,
+    )
 
 
 def _mean(xs: list[float]) -> float:
@@ -103,34 +107,28 @@ def _frac(pred_count: int, n: int) -> float:
     return pred_count / n if n else 0.0
 
 
-def etspa_board(callables: list[CallableMetrics]) -> dict[str, float]:
+def etspa_board(callables: list[CallableMetrics]) -> HelpersCoresEtspa:
     """ETSPA summary for a callable subset (typically helpers+cores, non-exempt)."""
     n = len(callables)
     if n == 0:
-        return {"callable_count": 0, "sum_S": 0.0, "frac_S_le_0": 0.0, "frac_fan_in_le_1": 0.0}
-    return {
-        "callable_count": n,
-        "sum_S": sum(c.S for c in callables),
-        "frac_S_le_0": _frac(sum(1 for c in callables if c.S <= 0), n),
-        "frac_fan_in_le_1": _frac(sum(1 for c in callables if c.fan_in_ext <= 1), n),
-    }
+        return HelpersCoresEtspa()
+    return HelpersCoresEtspa(
+        callable_count=n,
+        sum_S=sum(c.S for c in callables),
+        frac_S_le_0=_frac(sum(1 for c in callables if c.S <= 0), n),
+        frac_fan_in_le_1=_frac(sum(1 for c in callables if c.fan_in_ext <= 1), n),
+    )
 
 
-def expression_board(callables: list[CallableMetrics]) -> dict[str, float]:
+def expression_board(callables: list[CallableMetrics]) -> LeavesExpressionBoard:
     """Expression / nesting board for leaves."""
     n = len(callables)
     if n == 0:
-        return {
-            "callable_count": 0,
-            "mean_car": 0.0,
-            "mean_lmd": 0.0,
-            "mean_nesting": 0.0,
-            "mean_cognitive": 0.0,
-        }
-    return {
-        "callable_count": n,
-        "mean_car": _mean([c.car for c in callables]),
-        "mean_lmd": _mean([c.lmd for c in callables]),
-        "mean_nesting": _mean([float(c.max_nesting) for c in callables]),
-        "mean_cognitive": _mean([float(c.cognitive) for c in callables]),
-    }
+        return LeavesExpressionBoard()
+    return LeavesExpressionBoard(
+        callable_count=n,
+        mean_car=_mean([c.car for c in callables]),
+        mean_lmd=_mean([c.lmd for c in callables]),
+        mean_nesting=_mean([float(c.max_nesting) for c in callables]),
+        mean_cognitive=_mean([float(c.cognitive) for c in callables]),
+    )

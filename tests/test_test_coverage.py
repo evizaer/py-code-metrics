@@ -31,7 +31,7 @@ def test_coverage_floors_without_contexts():
     report = analyze_tests_path(SUT, coverage_path=cov)
     assert report.overall.coverage_line == 87.5
     assert report.overall.coverage_branch == 50.0
-    assert report.input["coverage_has_contexts"] is False
+    assert report.input.coverage_has_contexts is False
     assert report.overall.weak_oracle_covered_line_count == 0
     # incidental covered and only called by none-oracle test
     assert "prod.incidental" in report.overall.unchecked_covered_callables
@@ -42,9 +42,9 @@ def test_coverage_weak_oracle_lines_with_contexts():
     cov = SUT / "coverage_with_contexts.json"
     report = analyze_tests_path(SUT, coverage_path=cov)
     assert report.overall.coverage_line == 100.0
-    assert report.input["coverage_has_contexts"] is True
+    assert report.input.coverage_has_contexts is True
 
-    lines = {(item["file"], item["line"]) for item in report.overall.weak_oracle_covered_lines}
+    lines = {(item.file, item.line) for item in report.overall.weak_oracle_covered_lines}
     assert ("prod.py", 5) in lines
     assert ("prod.py", 13) in lines
     assert ("prod.py", 9) not in lines  # strong oracle covers multiply

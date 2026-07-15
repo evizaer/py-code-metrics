@@ -2,48 +2,53 @@
 
 from __future__ import annotations
 
+from py_code_metrics.model import MetricsReport, TestMetricsReport
 from py_code_metrics.views import board_view, findings_view, hotspots_view, symbol_view
 
 
-def _structural_report():
-    return {
-        "version": 1,
-        "overall": {
-            "complexity": {"n_unpaid_hotspots": 1, "max_v_poly": 20},
-            "etspa": {"helpers_cores": {"sum_S": 5.0, "frac_fan_in_le_1": 0.2}},
-            "expression": {"leaves": {"mean_car": 1.5}},
-            "roles": {"core": 1, "leaf": 1, "helper": 0},
-            "imports": {"cycle_count": 0},
-            "hotspots": [
-                {
-                    "qualified_name": "pkg.mod.fn",
-                    "v_poly": 20,
-                    "nesting": 4,
-                    "cognitive": 16,
-                    "fan_in_ext": 1,
-                    "S": -1.0,
-                    "role": "helper",
-                    "unpaid": True,
-                    "reduction_like": False,
-                    "dispatch_exempt": False,
-                }
-            ],
-        },
-        "modules": [
-            {
-                "path": "pkg/mod.py",
-                "functions": [
+def _structural_report() -> MetricsReport:
+    return MetricsReport.from_dict(
+        {
+            "version": 1,
+            "overall": {
+                "complexity": {"n_unpaid_hotspots": 1, "max_v_poly": 20},
+                "etspa": {"helpers_cores": {"sum_S": 5.0, "frac_fan_in_le_1": 0.2}},
+                "expression": {"leaves": {"mean_car": 1.5}},
+                "roles": {"core": 1, "leaf": 1, "helper": 0},
+                "imports": {"cycle_count": 0},
+                "hotspots": [
                     {
                         "qualified_name": "pkg.mod.fn",
-                        "name": "fn",
                         "v_poly": 20,
+                        "nesting": 4,
+                        "cognitive": 16,
                         "fan_in_ext": 1,
+                        "S": -1.0,
+                        "role": "helper",
+                        "unpaid": True,
+                        "reduction_like": False,
+                        "dispatch_exempt": False,
                     }
                 ],
-                "classes": [],
-            }
-        ],
-    }
+            },
+            "modules": [
+                {
+                    "path": "pkg/mod.py",
+                    "functions": [
+                        {
+                            "qualified_name": "pkg.mod.fn",
+                            "name": "fn",
+                            "kind": "function",
+                            "lineno": 1,
+                            "v_poly": 20,
+                            "fan_in_ext": 1,
+                        }
+                    ],
+                    "classes": [],
+                }
+            ],
+        }
+    )
 
 
 def test_board_view_shape():
@@ -80,38 +85,44 @@ def test_symbol_view():
 
 
 def test_findings_view():
-    report = {
-        "version": 1,
-        "overall": {
-            "test_count": 2,
-            "module_count": 1,
-            "frac_oracle_none": 0.5,
-            "frac_oracle_weak": 0.0,
-            "frac_oracle_strong": 0.5,
-            "high_severity_count": 1,
-        },
-        "modules": [
-            {
-                "path": "tests/test_x.py",
-                "tests": [
-                    {
-                        "qualified_name": "test_bad",
-                        "oracle_tier": "none",
-                        "smell_codes": ["NO_ORACLE"],
-                        "severity": "high",
-                        "lineno": 3,
-                    },
-                    {
-                        "qualified_name": "test_ok",
-                        "oracle_tier": "strong",
-                        "smell_codes": [],
-                        "severity": "info",
-                        "lineno": 10,
-                    },
-                ],
-            }
-        ],
-    }
+    report = TestMetricsReport.from_dict(
+        {
+            "version": 1,
+            "overall": {
+                "test_count": 2,
+                "module_count": 1,
+                "frac_oracle_none": 0.5,
+                "frac_oracle_weak": 0.0,
+                "frac_oracle_strong": 0.5,
+                "high_severity_count": 1,
+            },
+            "modules": [
+                {
+                    "path": "tests/test_x.py",
+                    "tests": [
+                        {
+                            "qualified_name": "test_bad",
+                            "name": "test_bad",
+                            "file": "tests/test_x.py",
+                            "oracle_tier": "none",
+                            "smell_codes": ["NO_ORACLE"],
+                            "severity": "high",
+                            "lineno": 3,
+                        },
+                        {
+                            "qualified_name": "test_ok",
+                            "name": "test_ok",
+                            "file": "tests/test_x.py",
+                            "oracle_tier": "strong",
+                            "smell_codes": [],
+                            "severity": "info",
+                            "lineno": 10,
+                        },
+                    ],
+                }
+            ],
+        }
+    )
     view = findings_view(report)
     assert view["view"] == "tests_findings"
     assert view["n_findings"] == 1

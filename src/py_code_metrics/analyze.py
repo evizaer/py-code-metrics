@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, TypedDict
 
 from py_code_metrics.dashboard import (
     class_is_ast_dispatcher,
@@ -33,10 +33,21 @@ from py_code_metrics.model import (
     DEFAULT_THRESHOLDS,
     CallableMetrics,
     ClassMetrics,
+    ComplexityBoard,
+    EtspaOverall,
+    ExpressionOverall,
+    HelpersCoresEtspa,
+    HotspotEntry,
+    ImportsOverall,
+    LeavesExpressionBoard,
     MetricsReport,
     ModuleReport,
     ModuleRollup,
     OverallReport,
+    OverallTotals,
+    ReportInput,
+    RoleCounts,
+    SkippedFileEntry,
     Thresholds,
 )
 from py_code_metrics.parse import parse_files
@@ -50,7 +61,8 @@ from py_code_metrics.resolve import (
 from py_code_metrics.roles import classify_role
 
 
-class _CallableStats(TypedDict):
+@dataclass
+class _CallableStats:
     sum_S: float
     frac_S_le_0: float
     frac_fan_in_le_1: float
@@ -65,10 +77,10 @@ class _CallableStats(TypedDict):
     n_unpaid_v_poly_gt_15: int
     n_unpaid_nesting_gt_3: int
     n_unpaid_hotspots: int
-    roles: dict[str, int]
-    hotspots: list[dict[str, Any]]
-    helpers_cores_etspa: dict[str, Any]
-    leaves_expression: dict[str, Any]
+    roles: RoleCounts
+    hotspots: list[HotspotEntry]
+    helpers_cores_etspa: HelpersCoresEtspa
+    leaves_expression: LeavesExpressionBoard
     mean_cvr: float
 
 
@@ -105,12 +117,14 @@ def analyze_path(root: Path, *, thresholds: Thresholds | None = None) -> Metrics
         for mod_name in sorted(index.modules)
     ]
     return MetricsReport(
-        input={
-            "root": str(root),
-            "files_analyzed": len(parsed),
-            "files_skipped": [{"path": str(s.path), "reason": s.reason} for s in skipped],
-        },
-        thresholds=thresholds.to_dict(),
+        input=ReportInput(
+            root=str(root),
+            files_analyzed=len(parsed),
+            files_skipped=[
+                SkippedFileEntry(path=str(s.path), reason=s.reason) for s in skipped
+            ],
+        ),
+        thresholds=thresholds,
         overall=_overall(modules_out, callable_metrics, index, import_graph, thresholds),
         modules=modules_out,
     )
@@ -288,21 +302,21 @@ def _rollup(
     return ModuleRollup(
         callable_count=n,
         class_count=class_count,
-        sum_S=stats["sum_S"],
-        frac_S_le_0=stats["frac_S_le_0"],
-        frac_fan_in_le_1=stats["frac_fan_in_le_1"],
-        max_v_poly=stats["max_v_poly"],
-        max_nesting=stats["max_nesting"],
-        mean_cyclomatic=stats["mean_cyclomatic"],
-        mean_cognitive=stats["mean_cognitive"],
-        mean_car=stats["mean_car"],
-        mean_lmd=stats["mean_lmd"],
-        n_v_poly_gt_15=stats["n_v_poly_gt_15"],
-        n_nesting_gt_3=stats["n_nesting_gt_3"],
-        n_unpaid_v_poly_gt_15=stats["n_unpaid_v_poly_gt_15"],
-        n_unpaid_nesting_gt_3=stats["n_unpaid_nesting_gt_3"],
-        n_unpaid_hotspots=stats["n_unpaid_hotspots"],
-        roles=stats["roles"],
+        sum_S=stats.sum_S,
+        frac_S_le_0=stats.frac_S_le_0,
+        frac_fan_in_le_1=stats.frac_fan_in_le_1,
+        max_v_poly=stats.max_v_poly,
+        max_nesting=stats.max_nesting,
+        mean_cyclomatic=stats.mean_cyclomatic,
+        mean_cognitive=stats.mean_cognitive,
+        mean_car=stats.mean_car,
+        mean_lmd=stats.mean_lmd,
+        n_v_poly_gt_15=stats.n_v_poly_gt_15,
+        n_nesting_gt_3=stats.n_nesting_gt_3,
+        n_unpaid_v_poly_gt_15=stats.n_unpaid_v_poly_gt_15,
+        n_unpaid_nesting_gt_3=stats.n_unpaid_nesting_gt_3,
+        n_unpaid_hotspots=stats.n_unpaid_hotspots,
+        roles=stats.roles,
     )
 
 
@@ -315,54 +329,53 @@ def _overall(
 ) -> OverallReport:
     all_c = list(callable_metrics.values())
     overall = OverallReport(
-        totals={
-            "modules": len(modules),
-            "classes": len(index.classes),
-            "functions": sum(1 for c in all_c if c.kind in {"function", "nested_function"}),
-            "methods": sum(1 for c in all_c if c.kind in {"method", "classmethod", "staticmethod"}),
-        },
-        imports={
-            "edge_count": import_graph.edge_count,
-            "cycle_count": len(import_graph.cycles),
-            "cycles": import_graph.cycles,
-        },
+        totals=OverallTotals(
+            modules=len(modules),
+            classes=len(index.classes),
+            functions=sum(1 for c in all_c if c.kind in {"function", "nested_function"}),
+            methods=sum(1 for c in all_c if c.kind in {"method", "classmethod", "staticmethod"}),
+        ),
+        imports=ImportsOverall(
+            edge_count=import_graph.edge_count,
+            cycle_count=len(import_graph.cycles),
+            cycles=import_graph.cycles,
+        ),
     )
     if not all_c:
         return overall
     stats = _callable_stats(all_c, thresholds)
-    overall.roles = stats["roles"]
-    overall.complexity = {
-        "max_v_poly": stats["max_v_poly"],
-        "max_nesting": stats["max_nesting"],
-        "mean_cyclomatic": stats["mean_cyclomatic"],
-        "mean_cognitive": stats["mean_cognitive"],
-        "n_v_poly_gt_15": stats["n_v_poly_gt_15"],
-        "n_nesting_gt_3": stats["n_nesting_gt_3"],
-        "n_unpaid_v_poly_gt_15": stats["n_unpaid_v_poly_gt_15"],
-        "n_unpaid_nesting_gt_3": stats["n_unpaid_nesting_gt_3"],
-        "n_unpaid_hotspots": stats["n_unpaid_hotspots"],
-    }
-    overall.etspa = {
-        "sum_S": stats["sum_S"],
-        "frac_S_le_0": stats["frac_S_le_0"],
-        "frac_fan_in_le_1": stats["frac_fan_in_le_1"],
-        "note": "Global fracs mix leaves+helpers; prefer helpers_cores for gates.",
-        "helpers_cores": stats["helpers_cores_etspa"],
-    }
-    overall.expression = {
-        "mean_car": stats["mean_car"],
-        "mean_lmd": stats["mean_lmd"],
-        "mean_cvr": stats["mean_cvr"],
-        "leaves": stats["leaves_expression"],
-    }
-    overall.hotspots = stats["hotspots"]
+    overall.roles = stats.roles
+    overall.complexity = ComplexityBoard(
+        max_v_poly=stats.max_v_poly,
+        max_nesting=stats.max_nesting,
+        mean_cyclomatic=stats.mean_cyclomatic,
+        mean_cognitive=stats.mean_cognitive,
+        n_v_poly_gt_15=stats.n_v_poly_gt_15,
+        n_nesting_gt_3=stats.n_nesting_gt_3,
+        n_unpaid_v_poly_gt_15=stats.n_unpaid_v_poly_gt_15,
+        n_unpaid_nesting_gt_3=stats.n_unpaid_nesting_gt_3,
+        n_unpaid_hotspots=stats.n_unpaid_hotspots,
+    )
+    overall.etspa = EtspaOverall(
+        sum_S=stats.sum_S,
+        frac_S_le_0=stats.frac_S_le_0,
+        frac_fan_in_le_1=stats.frac_fan_in_le_1,
+        helpers_cores=stats.helpers_cores_etspa,
+    )
+    overall.expression = ExpressionOverall(
+        mean_car=stats.mean_car,
+        mean_lmd=stats.mean_lmd,
+        mean_cvr=stats.mean_cvr,
+        leaves=stats.leaves_expression,
+    )
+    overall.hotspots = stats.hotspots
     return overall
 
 
 def _callable_stats(callables: list[CallableMetrics], thresholds: Thresholds) -> _CallableStats:
     """Shared module/overall aggregates over scored callables (single pass)."""
     n = len(callables)
-    roles = {"core": 0, "leaf": 0, "helper": 0}
+    roles = RoleCounts()
     v_gate = thresholds.v_poly_lenient
     nest_gate = thresholds.nesting_depth
 
@@ -375,7 +388,7 @@ def _callable_stats(callables: list[CallableMetrics], thresholds: Thresholds) ->
     hotspot_cms: list[CallableMetrics] = []
 
     for c in callables:
-        roles[c.role] = roles.get(c.role, 0) + 1
+        roles.bump(c.role)
         sum_S += c.S
         sum_cyc += c.cyclomatic
         sum_cog += c.cognitive
@@ -408,26 +421,26 @@ def _callable_stats(callables: list[CallableMetrics], thresholds: Thresholds) ->
             hotspot_cms.append(c)
 
     hotspot_cms.sort(key=lambda c: (-c.v_poly, -c.cognitive, -c.max_nesting, c.qualified_name))
-    hotspot_dicts = [hotspot_entry(c) for c in hotspot_cms]
+    hotspots = [hotspot_entry(c) for c in hotspot_cms]
 
-    return {
-        "sum_S": sum_S,
-        "frac_S_le_0": n_s_le_0 / n,
-        "frac_fan_in_le_1": n_f_le_1 / n,
-        "max_v_poly": max_v,
-        "max_nesting": max_n,
-        "mean_cyclomatic": sum_cyc / n,
-        "mean_cognitive": sum_cog / n,
-        "mean_car": sum_car / n,
-        "mean_lmd": sum_lmd / n,
-        "n_v_poly_gt_15": n_v,
-        "n_nesting_gt_3": n_nest,
-        "n_unpaid_v_poly_gt_15": n_unpaid_v,
-        "n_unpaid_nesting_gt_3": n_unpaid_nest,
-        "n_unpaid_hotspots": len(hotspot_dicts),
-        "roles": roles,
-        "hotspots": hotspot_dicts,
-        "helpers_cores_etspa": etspa_board(helper_core),
-        "leaves_expression": expression_board(leaves),
-        "mean_cvr": sum_cvr / n,
-    }
+    return _CallableStats(
+        sum_S=sum_S,
+        frac_S_le_0=n_s_le_0 / n,
+        frac_fan_in_le_1=n_f_le_1 / n,
+        max_v_poly=max_v,
+        max_nesting=max_n,
+        mean_cyclomatic=sum_cyc / n,
+        mean_cognitive=sum_cog / n,
+        mean_car=sum_car / n,
+        mean_lmd=sum_lmd / n,
+        n_v_poly_gt_15=n_v,
+        n_nesting_gt_3=n_nest,
+        n_unpaid_v_poly_gt_15=n_unpaid_v,
+        n_unpaid_nesting_gt_3=n_unpaid_nest,
+        n_unpaid_hotspots=len(hotspots),
+        roles=roles,
+        hotspots=hotspots,
+        helpers_cores_etspa=etspa_board(helper_core),
+        leaves_expression=expression_board(leaves),
+        mean_cvr=sum_cvr / n,
+    )

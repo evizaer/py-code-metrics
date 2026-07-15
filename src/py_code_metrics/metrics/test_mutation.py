@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from py_code_metrics.model import TestMetricsReport
+from py_code_metrics.model import MutationSurvivor, TestMetricsReport
 from py_code_metrics.resolve import CallableInfo, SymbolIndex
 
 PCM_MUTATION_FORMAT = "py-code-metrics.mutation.v1"
@@ -25,7 +25,7 @@ class MutationIngest:
     survived: int = 0
     timeout: int = 0
     skipped: int = 0
-    survivors: list[dict[str, Any]] = field(default_factory=list)
+    survivors: list[MutationSurvivor] = field(default_factory=list)
 
     @property
     def mutation_score(self) -> float | None:
@@ -150,7 +150,7 @@ def _from_cosmic_ray_array(rows: list[Any]) -> MutationIngest:
     survived = 0
     timeout = 0
     skipped = 0
-    survivors: list[dict[str, Any]] = []
+    survivors: list[MutationSurvivor] = []
     for row in rows:
         item, result = _split_cosmic_row(row)
         outcome = _cosmic_outcome(result)
@@ -197,7 +197,9 @@ def _cosmic_outcome(result: dict[str, Any] | None) -> str | None:
     return result.get("test_outcome") or result.get("outcome")
 
 
-def _survivor_from_cosmic(item: dict[str, Any], result: dict[str, Any] | None) -> dict[str, Any]:
+def _survivor_from_cosmic(
+    item: dict[str, Any], result: dict[str, Any] | None
+) -> MutationSurvivor:
     merged = {**item, **(result or {})}
     line = merged.get("line_number")
     if line is None:
@@ -215,23 +217,10 @@ def _survivor_from_cosmic(item: dict[str, Any], result: dict[str, Any] | None) -
     )
 
 
-def _normalize_survivor(raw: dict[str, Any] | Any) -> dict[str, Any]:
+def _normalize_survivor(raw: dict[str, Any] | Any) -> MutationSurvivor:
     if not isinstance(raw, dict):
         raise MutationLoadError("survivor entries must be objects")
-    line = raw.get("line")
-    try:
-        line_i = int(line) if line is not None else None
-    except (TypeError, ValueError):
-        line_i = None
-    out: dict[str, Any] = {
-        "file": str(raw.get("file") or raw.get("path") or ""),
-        "line": line_i,
-        "id": raw.get("id"),
-        "operator": raw.get("operator"),
-        "status": str(raw.get("status") or "survived"),
-        "overlap_flags": list(raw.get("overlap_flags") or []),
-    }
-    return out
+    return MutationSurvivor.from_dict(raw)
 
 
 def _int(value: Any, default: int = 0) -> int:
@@ -243,10 +232,15 @@ def _int(value: Any, default: int = 0) -> int:
         return default
 
 
-def _rel_survivor(item: dict[str, Any], root: Path) -> dict[str, Any]:
-    out = dict(item)
-    out["file"] = _rel_to_root(root, str(item.get("file") or ""))
-    return out
+def _rel_survivor(item: MutationSurvivor, root: Path) -> MutationSurvivor:
+    return MutationSurvivor(
+        file=_rel_to_root(root, item.file or ""),
+        line=item.line,
+        id=item.id,
+        operator=item.operator,
+        status=item.status,
+        overlap_flags=list(item.overlap_flags),
+    )
 
 
 def _rel_to_root(root: Path, file_key: str) -> str:
@@ -261,31 +255,36 @@ def _rel_to_root(root: Path, file_key: str) -> str:
         return str(path)
 
 
-def _tag_overlap_lines_only(survivor: dict[str, Any], report: TestMetricsReport) -> dict[str, Any]:
+def _tag_overlap_lines_only(
+    survivor: MutationSurvivor, report: TestMetricsReport
+) -> MutationSurvivor:
     flags: list[str] = []
-    file = str(survivor.get("file") or "")
-    line = survivor.get("line")
     for item in report.overall.weak_oracle_covered_lines:
-        if item.get("file") == file and item.get("line") == line:
+        if item.file == survivor.file and item.line == survivor.line:
             flags.append("weak_oracle_covered_line")
             break
-    out = dict(survivor)
-    out["overlap_flags"] = flags
-    return out
+    return MutationSurvivor(
+        file=survivor.file,
+        line=survivor.line,
+        id=survivor.id,
+        operator=survivor.operator,
+        status=survivor.status,
+        overlap_flags=flags,
+    )
 
 
 def _tag_overlap(
-    survivor: dict[str, Any],
+    survivor: MutationSurvivor,
     report: TestMetricsReport,
     index: SymbolIndex,
     root: Path,
-) -> dict[str, Any]:
+) -> MutationSurvivor:
     out = _tag_overlap_lines_only(survivor, report)
-    flags = list(out.get("overlap_flags") or [])
-    line = survivor.get("line")
-    file = str(survivor.get("file") or "")
+    flags = list(out.overlap_flags)
+    line = survivor.line
+    file = survivor.file or ""
     if line is None or not file:
-        out["overlap_flags"] = flags
+        out.overlap_flags = flags
         return out
     unchecked = set(report.overall.unchecked_covered_callables)
     for qname in unchecked:
@@ -297,7 +296,7 @@ def _tag_overlap(
         if _line_in_callable(info, int(line)):
             flags.append("unchecked_covered_callable")
             break
-    out["overlap_flags"] = flags
+    out.overlap_flags = flags
     return out
 
 
@@ -323,7 +322,7 @@ def _line_in_callable(info: CallableInfo, line: int) -> bool:
 def _attach_module_survivors(report: TestMetricsReport) -> None:
     by_file: dict[str, int] = {}
     for item in report.overall.survivors:
-        f = str(item.get("file") or "")
+        f = item.file or ""
         by_file[f] = by_file.get(f, 0) + 1
     for mod in report.modules:
         mod.metrics.survivor_count = by_file.get(mod.path, 0)

@@ -26,8 +26,8 @@ def test_load_pcm_v1():
     assert ingest.survived == 2
     assert ingest.mutation_score == pytest.approx(0.8)
     assert len(ingest.survivors) == 2
-    assert ingest.survivors[0]["file"] == "prod.py"
-    assert ingest.survivors[0]["line"] == 5
+    assert ingest.survivors[0].file == "prod.py"
+    assert ingest.survivors[0].line == 5
 
 
 def test_load_mutmut_cicd():
@@ -43,7 +43,7 @@ def test_load_cosmic_ray_ndjson():
     assert ingest.killed == 1
     assert ingest.survived == 2
     assert ingest.mutation_score == pytest.approx(1 / 3)
-    lines = {s["line"] for s in ingest.survivors}
+    lines = {s.line for s in ingest.survivors}
     assert lines == {5, 13}
 
 
@@ -51,8 +51,8 @@ def test_apply_mutation_survivors():
     report = analyze_tests_path(SUT, mutation_path=SUT / "mutation_pcm_v1.json")
     assert report.overall.mutation_score == pytest.approx(0.8)
     assert report.overall.survivor_count == 2
-    assert report.input["mutation_format"] == "pcm_v1"
-    files = {s["file"] for s in report.overall.survivors}
+    assert report.input.mutation_format == "pcm_v1"
+    files = {s.file for s in report.overall.survivors}
     assert "prod.py" in files
 
 
@@ -62,9 +62,9 @@ def test_mutation_overlap_with_coverage():
         coverage_path=SUT / "coverage_with_contexts.json",
         mutation_path=SUT / "mutation_pcm_v1.json",
     )
-    by_line = {s["line"]: s for s in report.overall.survivors}
-    assert "weak_oracle_covered_line" in by_line[5]["overlap_flags"]
-    assert "unchecked_covered_callable" in by_line[13]["overlap_flags"]
+    by_line = {s.line: s for s in report.overall.survivors}
+    assert "weak_oracle_covered_line" in by_line[5].overlap_flags
+    assert "unchecked_covered_callable" in by_line[13].overlap_flags
 
 
 def test_cli_mutation_flag():
@@ -107,4 +107,4 @@ def test_delta_filters_survivors(monkeypatch: pytest.MonkeyPatch):
         delta=True,
     )
     assert report.overall.survivor_count == 2
-    assert all(s["file"] == "prod.py" for s in report.overall.survivors)
+    assert all(s.file == "prod.py" for s in report.overall.survivors)

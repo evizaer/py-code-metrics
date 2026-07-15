@@ -6,12 +6,12 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any
 
 from py_code_metrics.analyze import analyze_path
 from py_code_metrics.analyze_tests import analyze_tests_path
 from py_code_metrics.compare import compare, load_report
 from py_code_metrics.metrics.test_delta import changed_python_paths
+from py_code_metrics.model import MetricsReport, TestMetricsReport
 from py_code_metrics.report import report_to_json
 from py_code_metrics.views import (
     board_view,
@@ -299,26 +299,26 @@ def _cmd_snapshot(args: argparse.Namespace) -> int:
 
 
 def _cmd_tests(args: argparse.Namespace) -> int:
-    report_dict, err = _load_or_analyze_tests(args)
+    report, err = _load_or_analyze_tests(args)
     if err is not None:
         print(err, file=sys.stderr)
         return 2
-    assert report_dict is not None
+    assert report is not None
     if args.full:
-        sys.stdout.write(json.dumps(report_dict, indent=args.indent) + "\n")
+        sys.stdout.write(json.dumps(report.to_dict(), indent=args.indent) + "\n")
         return 0
-    view = findings_view(report_dict, limit=args.limit)
+    view = findings_view(report, limit=args.limit)
     sys.stdout.write(json.dumps(view, indent=args.indent) + "\n")
     return 0
 
 
 def _cmd_symbol(args: argparse.Namespace) -> int:
-    report_dict, err = _load_or_analyze_structural(args)
+    report, err = _load_or_analyze_structural(args)
     if err is not None:
         print(err, file=sys.stderr)
         return 2
-    assert report_dict is not None
-    view = symbol_view(report_dict, args.qname)
+    assert report is not None
+    view = symbol_view(report, args.qname)
     if view is None:
         print(f"error: symbol not found: {args.qname}", file=sys.stderr)
         return 2
@@ -327,20 +327,20 @@ def _cmd_symbol(args: argparse.Namespace) -> int:
 
 
 def _cmd_structural_view(args: argparse.Namespace, command: str) -> int:
-    report_dict, err = _load_or_analyze_structural(args)
+    report, err = _load_or_analyze_structural(args)
     if err is not None:
         print(err, file=sys.stderr)
         return 2
-    assert report_dict is not None
+    assert report is not None
     if command == "analyze":
-        sys.stdout.write(json.dumps(report_dict, indent=args.indent) + "\n")
+        sys.stdout.write(json.dumps(report.to_dict(), indent=args.indent) + "\n")
         return 0
     if command == "board":
-        view = board_view(report_dict)
+        view = board_view(report)
     else:
-        path_filter = _resolve_path_filter(args, report_dict)
+        path_filter = _resolve_path_filter(args, report)
         view = hotspots_view(
-            report_dict,
+            report,
             limit=getattr(args, "limit", None),
             path_filter=path_filter,
         )
@@ -350,7 +350,7 @@ def _cmd_structural_view(args: argparse.Namespace, command: str) -> int:
 
 def _load_or_analyze_structural(
     args: argparse.Namespace,
-) -> tuple[dict[str, Any] | None, str | None]:
+) -> tuple[MetricsReport | None, str | None]:
     if args.from_file is not None:
         if not args.from_file.exists():
             return None, f"error: snapshot does not exist: {args.from_file}"
@@ -362,17 +362,21 @@ def _load_or_analyze_structural(
         return None, "error: path is required unless -f/--from-file is set"
     if not args.path.exists():
         return None, f"error: path does not exist: {args.path}"
-    return analyze_path(args.path).to_dict(), None
+    return analyze_path(args.path), None
+
+
+def _load_test_report(path: Path) -> TestMetricsReport:
+    return TestMetricsReport.from_dict(json.loads(path.read_text(encoding="utf-8")))
 
 
 def _load_or_analyze_tests(
     args: argparse.Namespace,
-) -> tuple[dict[str, Any] | None, str | None]:
+) -> tuple[TestMetricsReport | None, str | None]:
     if args.from_file is not None:
         if not args.from_file.exists():
             return None, f"error: snapshot does not exist: {args.from_file}"
         try:
-            return load_report(args.from_file), None
+            return _load_test_report(args.from_file), None
         except (OSError, json.JSONDecodeError) as exc:
             return None, f"error: {exc}"
     path: Path = args.path
@@ -392,10 +396,10 @@ def _load_or_analyze_tests(
         )
     except ValueError as exc:
         return None, f"error: {exc}"
-    return report.to_dict(), None
+    return report, None
 
 
-def _resolve_path_filter(args: argparse.Namespace, report: dict[str, Any]) -> set[str] | None:
+def _resolve_path_filter(args: argparse.Namespace, report: MetricsReport) -> set[str] | None:
     paths: set[str] = set()
     if getattr(args, "paths", None):
         paths.update(str(p).replace("\\", "/") for p in args.paths)
@@ -408,12 +412,11 @@ def _resolve_path_filter(args: argparse.Namespace, report: dict[str, Any]) -> se
     return paths or None
 
 
-def _report_root(report: dict[str, Any], args: argparse.Namespace) -> Path:
+def _report_root(report: MetricsReport, args: argparse.Namespace) -> Path:
     if args.path is not None:
         return args.path.resolve()
-    root = (report.get("input") or {}).get("root")
-    if root:
-        return Path(root).resolve()
+    if report.input.root:
+        return Path(report.input.root).resolve()
     if args.from_file is not None:
         return args.from_file.resolve().parent
     return Path.cwd()

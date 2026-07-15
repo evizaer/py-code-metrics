@@ -13,6 +13,10 @@ from py_code_metrics.metrics.test_smells import derive_smells, summarize_oracles
 from py_code_metrics.metrics.test_state_fields import apply_state_field_coverage
 from py_code_metrics.metrics.test_sut import resolve_production_calls
 from py_code_metrics.model import (
+    HighSeverityFinding,
+    OracleHistogram,
+    ReportInput,
+    SkippedFileEntry,
     TestCaseMetrics,
     TestMetricsReport,
     TestModuleReport,
@@ -42,13 +46,13 @@ def analyze_tests_path(
     ]
     modules.sort(key=lambda m: m.path)
 
-    meta: dict = {
-        "root": str(root),
-        "files_analyzed": len(modules),
-        "files_skipped": [{"path": str(s.path), "reason": s.reason} for s in skipped],
-    }
+    report_input = ReportInput(
+        root=str(root),
+        files_analyzed=len(modules),
+        files_skipped=[SkippedFileEntry(path=str(s.path), reason=s.reason) for s in skipped],
+    )
     report = TestMetricsReport(
-        input=meta,
+        input=report_input,
         overall=_overall(modules),
         modules=modules,
     )
@@ -58,21 +62,21 @@ def analyze_tests_path(
     if coverage_path is not None:
         ingest = load_coverage_json(coverage_path)
         apply_coverage(report, index, ingest, root)
-        meta["coverage_path"] = str(coverage_path.resolve())
-        meta["coverage_has_contexts"] = ingest.has_contexts
+        report_input.coverage_path = str(coverage_path.resolve())
+        report_input.coverage_has_contexts = ingest.has_contexts
 
     if mutation_path is not None:
         mut = load_mutation_json(mutation_path)
         apply_mutation(report, mut, root, index)
-        meta["mutation_path"] = str(mutation_path.resolve())
-        meta["mutation_format"] = mut.format_name
+        report_input.mutation_path = str(mutation_path.resolve())
+        report_input.mutation_format = mut.format_name
 
     if delta:
         paths, note = changed_python_paths(root)
-        meta["delta"] = True
-        meta["files_in_delta"] = paths
+        report_input.delta = True
+        report_input.files_in_delta = paths
         if note:
-            meta["delta_note"] = note
+            report_input.delta_note = note
         _apply_delta_filter(report, set(paths))
 
     return report
@@ -175,24 +179,24 @@ def _overall(modules: list[TestModuleReport]) -> TestOverallReport:
     overall = TestOverallReport(module_count=len(modules), test_count=n)
     if not n:
         return overall
-    hist = {"none": 0, "weak": 0, "strong": 0}
+    hist = OracleHistogram()
     for t in tests:
-        hist[t.oracle_tier] = hist.get(t.oracle_tier, 0) + 1
+        hist.bump(t.oracle_tier)
     high = [t for t in tests if t.severity == "high"]
-    overall.frac_oracle_none = hist["none"] / n
-    overall.frac_oracle_weak = hist["weak"] / n
-    overall.frac_oracle_strong = hist["strong"] / n
+    overall.frac_oracle_none = hist.none / n
+    overall.frac_oracle_weak = hist.weak / n
+    overall.frac_oracle_strong = hist.strong / n
     overall.mean_assertion_density = sum(t.assertion_count for t in tests) / n
     overall.high_severity_count = len(high)
     overall.oracle_histogram = hist
     overall.high_severity_findings = [
-        {
-            "file": t.file,
-            "name": t.qualified_name,
-            "lineno": t.lineno,
-            "smell_codes": t.smell_codes,
-            "oracle_tier": t.oracle_tier,
-        }
+        HighSeverityFinding(
+            file=t.file,
+            name=t.qualified_name,
+            lineno=t.lineno,
+            smell_codes=list(t.smell_codes),
+            oracle_tier=t.oracle_tier,
+        )
         for t in high
     ]
     return overall
@@ -229,7 +233,7 @@ def _restore_optional_signals(report: TestMetricsReport, saved: dict, normalized
     o.coverage_line = saved["coverage_line"]
     o.coverage_branch = saved["coverage_branch"]
     o.weak_oracle_covered_lines = [
-        item for item in saved["weak"] if _path_in_delta(item["file"], normalized)
+        item for item in saved["weak"] if _path_in_delta(item.file, normalized)
     ]
     o.weak_oracle_covered_line_count = len(o.weak_oracle_covered_lines)
     o.unchecked_covered_callables = [
@@ -238,21 +242,17 @@ def _restore_optional_signals(report: TestMetricsReport, saved: dict, normalized
     o.unchecked_covered_callable_count = len(o.unchecked_covered_callables)
     o.mutation_score = saved["mutation_score"]
     o.survivors = [
-        item
-        for item in saved["survivors"]
-        if _path_in_delta(str(item.get("file") or ""), normalized)
+        item for item in saved["survivors"] if _path_in_delta(item.file or "", normalized)
     ]
     o.survivor_count = len(o.survivors)
     o.state_field_classes = [
-        d for d in saved["sfc_classes"] if _qname_in_delta(str(d.get("class") or ""), normalized)
+        d for d in saved["sfc_classes"] if _qname_in_delta(d.class_, normalized)
     ]
     o.uncovered_state_fields = [
-        item
-        for item in saved["sfc_uncovered"]
-        if _qname_in_delta(str(item.get("class") or ""), normalized)
+        item for item in saved["sfc_uncovered"] if _qname_in_delta(item.class_, normalized)
     ]
     o.uncovered_state_field_count = len(o.uncovered_state_fields)
-    scores = [float(d["score"]) for d in o.state_field_classes]
+    scores = [float(d.score) for d in o.state_field_classes]
     o.mean_state_field_coverage = sum(scores) / len(scores) if scores else saved["sfc_mean"]
 
 

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from py_code_metrics.discover import is_test_file
-from py_code_metrics.model import TestCaseMetrics, TestMetricsReport
+from py_code_metrics.model import TestCaseMetrics, TestMetricsReport, WeakOracleCoveredLine
 from py_code_metrics.resolve import CallableInfo, SymbolIndex
 
 
@@ -185,7 +185,7 @@ def _tiers_from_contexts(
 
 def _weak_line_finding(
     rel: str, line_no: int, tiers: list[str], test_names: list[str]
-) -> dict[str, Any] | None:
+) -> WeakOracleCoveredLine | None:
     if not tiers:
         return None
     if any(t == "strong" for t in tiers):
@@ -193,20 +193,20 @@ def _weak_line_finding(
     if not all(t in ("none", "weak") for t in tiers):
         return None
     best = "weak" if "weak" in tiers else "none"
-    return {
-        "file": rel,
-        "line": line_no,
-        "tests": sorted(set(test_names)),
-        "best_oracle_tier": best,
-    }
+    return WeakOracleCoveredLine(
+        file=rel,
+        line=line_no,
+        tests=sorted(set(test_names)),
+        best_oracle_tier=best,  # type: ignore[arg-type]
+    )
 
 
 def _weak_oracle_covered_lines(
     ingest: CoverageIngest,
     test_by_key: dict[tuple[str, str], TestCaseMetrics],
     root: Path,
-) -> list[dict[str, Any]]:
-    findings: list[dict[str, Any]] = []
+) -> list[WeakOracleCoveredLine]:
+    findings: list[WeakOracleCoveredLine] = []
     for file_key, by_line in ingest.contexts.items():
         rel = _rel_to_root(root, file_key)
         for line_no, ctxs in sorted(by_line.items()):
@@ -307,7 +307,7 @@ def _attach_module_floors(report: TestMetricsReport, ingest: CoverageIngest, roo
 def _count_module_findings(report: TestMetricsReport) -> None:
     by_file: dict[str, int] = {}
     for item in report.overall.weak_oracle_covered_lines:
-        by_file[item["file"]] = by_file.get(item["file"], 0) + 1
+        by_file[item.file] = by_file.get(item.file, 0) + 1
     for mod in report.modules:
         mod.metrics.weak_oracle_covered_line_count = by_file.get(mod.path, 0)
         mod.metrics.unchecked_covered_callable_count = 0

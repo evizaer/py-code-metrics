@@ -5,14 +5,19 @@ from __future__ import annotations
 import ast
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 from py_code_metrics.discover import is_test_file
 from py_code_metrics.metrics.test_oracles import (
     TestFunctionInfo,
     extract_test_functions,
 )
-from py_code_metrics.model import TestCaseMetrics, TestMetricsReport, TestModuleReport
+from py_code_metrics.model import (
+    StateFieldClassDetail,
+    TestCaseMetrics,
+    TestMetricsReport,
+    TestModuleReport,
+    UncoveredStateField,
+)
 from py_code_metrics.resolve import SymbolIndex
 
 COLLECTION_NAMES = frozenset(
@@ -71,10 +76,10 @@ def apply_state_field_coverage(
     details = _class_details(states, covered_by_class, targeted)
     report.overall.state_field_classes = details
     report.overall.uncovered_state_fields = [
-        {"class": d["class"], "field": f} for d in details for f in d["uncovered"]
+        UncoveredStateField(class_=d.class_, field=f) for d in details for f in d.uncovered
     ]
     report.overall.uncovered_state_field_count = len(report.overall.uncovered_state_fields)
-    scores = [float(d["score"]) for d in details]
+    scores = [float(d.score) for d in details]
     report.overall.mean_state_field_coverage = sum(scores) / len(scores) if scores else None
     _attach_module_sfc(report, details, index)
 
@@ -537,8 +542,8 @@ def _class_details(
     states: dict[str, ClassState],
     covered_by_class: dict[str, set[str]],
     targeted: set[str],
-) -> list[dict[str, Any]]:
-    details: list[dict[str, Any]] = []
+) -> list[StateFieldClassDetail]:
+    details: list[StateFieldClassDetail] = []
     for cq in sorted(targeted):
         st = states.get(cq)
         if st is None or not st.coverable:
@@ -548,23 +553,23 @@ def _class_details(
         uncovered = [c for c in coverable if c not in covered]
         score = len(covered) / len(coverable) if coverable else 0.0
         details.append(
-            {
-                "class": cq,
-                "coverable": coverable,
-                "covered": covered,
-                "uncovered": uncovered,
-                "score": score,
-            }
+            StateFieldClassDetail(
+                class_=cq,
+                coverable=coverable,
+                covered=covered,
+                uncovered=uncovered,
+                score=score,
+            )
         )
     return details
 
 
 def _attach_module_sfc(
     report: TestMetricsReport,
-    details: list[dict[str, Any]],
+    details: list[StateFieldClassDetail],
     index: SymbolIndex,
 ) -> None:
-    score_by_class = {d["class"]: float(d["score"]) for d in details}
+    score_by_class = {d.class_: float(d.score) for d in details}
     for mod in report.modules:
         exercised = _module_exercised_scores(mod, score_by_class, index)
         mod.metrics.mean_state_field_coverage = (

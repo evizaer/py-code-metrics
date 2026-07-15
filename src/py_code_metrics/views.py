@@ -1,199 +1,279 @@
-"""Compact agent-facing views over metrics report dicts."""
+"""Compact agent-facing views over metrics reports."""
 
 from __future__ import annotations
 
 from collections.abc import Iterator
+from dataclasses import asdict, dataclass, field
 from typing import Any
+
+from py_code_metrics.model import (
+    CallableMetrics,
+    ClassMetrics,
+    HotspotEntry,
+    MetricsReport,
+    TestCaseMetrics,
+    TestMetricsReport,
+    TestModuleReport,
+)
 
 _NEIGHBORS_NOTE = "callers/callees not in snapshot; use fan_in_* fields."
 
 
-def iter_callables(report: dict[str, Any]) -> Iterator[tuple[str | None, dict[str, Any]]]:
-    """Yield ``(module_path, callable_dict)`` for functions and methods."""
-    for mod in report.get("modules") or []:
-        path = mod.get("path")
-        for fn in mod.get("functions") or []:
-            yield path, fn
-        for cls in mod.get("classes") or []:
-            for meth in cls.get("methods") or []:
-                yield path, meth
+@dataclass
+class BoardView:
+    version: int
+    view: str = "board"
+    complexity: dict[str, Any] = field(default_factory=dict)
+    etspa: dict[str, Any] = field(default_factory=dict)
+    expression: dict[str, Any] = field(default_factory=dict)
+    roles: dict[str, int] = field(default_factory=dict)
+    imports: dict[str, int] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
 
 
-def iter_classes(report: dict[str, Any]) -> Iterator[tuple[str | None, dict[str, Any]]]:
-    for mod in report.get("modules") or []:
-        path = mod.get("path")
-        for cls in mod.get("classes") or []:
-            yield path, cls
+@dataclass
+class HotspotsView:
+    version: int
+    view: str = "hotspots"
+    n_unpaid_hotspots: int = 0
+    hotspots: list[dict[str, Any]] = field(default_factory=list)
+    filter: dict[str, Any] | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        out = {
+            "version": self.version,
+            "view": self.view,
+            "n_unpaid_hotspots": self.n_unpaid_hotspots,
+            "hotspots": list(self.hotspots),
+        }
+        if self.filter is not None:
+            out["filter"] = self.filter
+        return out
 
 
-def board_view(report: dict[str, Any]) -> dict[str, Any]:
-    overall = report.get("overall", {})
-    etspa = overall.get("etspa") or {}
-    expression = overall.get("expression") or {}
-    imports = overall.get("imports") or {}
-    return {
-        "version": report.get("version", 1),
-        "view": "board",
-        "complexity": overall.get("complexity") or {},
-        "etspa": {"helpers_cores": etspa.get("helpers_cores") or {}},
-        "expression": {"leaves": expression.get("leaves") or {}},
-        "roles": overall.get("roles") or {},
-        "imports": {"cycle_count": imports.get("cycle_count", 0)},
-    }
+@dataclass
+class SymbolView:
+    version: int
+    kind: str
+    path: str | None
+    symbol: dict[str, Any]
+    view: str = "symbol"
+    callers: list[str] = field(default_factory=list)
+    callees: list[str] = field(default_factory=list)
+    neighbors_note: str = _NEIGHBORS_NOTE
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class TestFindingRow:
+    qualified_name: str | None
+    oracle_tier: str | None
+    smell_codes: list[str]
+    severity: str | None
+    path: str | None
+    lineno: int | None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class FindingsView:
+    version: int
+    view: str = "tests_findings"
+    n_findings: int = 0
+    findings: list[dict[str, Any]] = field(default_factory=list)
+    overall: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+def iter_callables(report: MetricsReport) -> Iterator[tuple[str | None, CallableMetrics]]:
+    """Yield ``(module_path, callable)`` for functions and methods."""
+    for mod in report.modules:
+        for fn in mod.functions:
+            yield mod.path, fn
+        for cls in mod.classes:
+            for meth in cls.methods:
+                yield mod.path, meth
+
+
+def iter_classes(report: MetricsReport) -> Iterator[tuple[str | None, ClassMetrics]]:
+    for mod in report.modules:
+        for cls in mod.classes:
+            yield mod.path, cls
+
+
+def board_view(report: MetricsReport) -> dict[str, Any]:
+    overall = report.overall
+    return BoardView(
+        version=report.version,
+        complexity=overall.complexity.to_dict(),
+        etspa={"helpers_cores": overall.etspa.helpers_cores.to_dict()},
+        expression={"leaves": overall.expression.leaves.to_dict()},
+        roles=overall.roles.to_dict(),
+        imports={"cycle_count": overall.imports.cycle_count},
+    ).to_dict()
 
 
 def hotspots_view(
-    report: dict[str, Any],
+    report: MetricsReport,
     *,
     limit: int | None = None,
     path_filter: set[str] | None = None,
 ) -> dict[str, Any]:
-    overall = report.get("overall", {})
-    complexity = overall.get("complexity") or {}
-    hotspots = list(overall.get("hotspots") or [])
+    hotspots = list(report.overall.hotspots)
     paths = callable_paths(report)
     if path_filter:
         normalized = {_norm_path(p) for p in path_filter}
         hotspots = [
             h
             for h in hotspots
-            if _path_in_filter(paths.get(h.get("qualified_name", ""), ""), normalized)
+            if _path_in_filter(paths.get(h.qualified_name, ""), normalized)
         ]
     enriched = [_with_path(h, paths) for h in hotspots]
     if limit is not None:
         enriched = enriched[:limit]
-    out: dict[str, Any] = {
-        "version": report.get("version", 1),
-        "view": "hotspots",
-        "n_unpaid_hotspots": complexity.get("n_unpaid_hotspots", len(hotspots)),
-        "hotspots": enriched,
-    }
+    view = HotspotsView(
+        version=report.version,
+        n_unpaid_hotspots=report.overall.complexity.n_unpaid_hotspots,
+        hotspots=[h.to_dict() for h in enriched],
+    )
     if path_filter is not None:
-        out["filter"] = {
+        view.filter = {
             "paths": sorted(path_filter),
             "note": (
                 "Hotspot list filtered to listed paths; "
                 "n_unpaid_hotspots remains the corpus-level count."
             ),
         }
-    return out
+    return view.to_dict()
 
 
-def symbol_view(report: dict[str, Any], qname: str) -> dict[str, Any] | None:
+def symbol_view(report: MetricsReport, qname: str) -> dict[str, Any] | None:
     found = find_symbol(report, qname)
     if found is None:
         return None
     kind, payload, path = found
-    return {
-        "version": report.get("version", 1),
-        "view": "symbol",
-        "kind": kind,
-        "path": path,
-        "symbol": payload,
-        "callers": [],
-        "callees": [],
-        "neighbors_note": _NEIGHBORS_NOTE,
-    }
+    return SymbolView(
+        version=report.version,
+        kind=kind,
+        path=path,
+        symbol=payload.to_dict(),
+    ).to_dict()
 
 
 def findings_view(
-    report: dict[str, Any],
+    report: TestMetricsReport,
     *,
     limit: int | None = None,
 ) -> dict[str, Any]:
     findings: list[dict[str, Any]] = []
-    for mod in report.get("modules") or []:
-        for t in mod.get("tests") or []:
+    for mod in report.modules:
+        for t in mod.tests:
             row = _finding_row(mod, t)
             if row is not None:
-                findings.append(row)
-    overall = report.get("overall") or {}
-    for survivor in overall.get("survivors") or []:
+                findings.append(row.to_dict())
+    overall = report.overall
+    for survivor in overall.survivors:
         findings.append(
             {
                 "kind": "mutation_survivor",
-                "path": survivor.get("file"),
-                "lineno": survivor.get("line"),
-                "operator": survivor.get("operator"),
-                "id": survivor.get("id"),
-                "overlap_flags": survivor.get("overlap_flags") or [],
+                "path": survivor.file,
+                "lineno": survivor.line,
+                "operator": survivor.operator,
+                "id": survivor.id,
+                "overlap_flags": list(survivor.overlap_flags),
                 "severity": "low",
             }
         )
-    for item in overall.get("uncovered_state_fields") or []:
+    for item in overall.uncovered_state_fields:
         findings.append(
             {
                 "kind": "unchecked_state_field",
-                "class": item.get("class"),
-                "field": item.get("field"),
+                "class": item.class_,
+                "field": item.field,
                 "severity": "low",
             }
         )
     if limit is not None:
         findings = findings[:limit]
-    return {
-        "version": report.get("version", 1),
-        "view": "tests_findings",
-        "n_findings": len(findings),
-        "findings": findings,
-        "overall": {
-            "test_count": overall.get("test_count"),
-            "frac_oracle_none": overall.get("frac_oracle_none"),
-            "frac_oracle_weak": overall.get("frac_oracle_weak"),
-            "frac_oracle_strong": overall.get("frac_oracle_strong"),
-            "high_severity_count": overall.get("high_severity_count"),
-            "weak_oracle_covered_line_count": overall.get("weak_oracle_covered_line_count"),
-            "unchecked_covered_callable_count": overall.get("unchecked_covered_callable_count"),
-            "mutation_score": overall.get("mutation_score"),
-            "survivor_count": overall.get("survivor_count"),
-            "mean_state_field_coverage": overall.get("mean_state_field_coverage"),
-            "uncovered_state_field_count": overall.get("uncovered_state_field_count"),
+    return FindingsView(
+        version=report.version,
+        n_findings=len(findings),
+        findings=findings,
+        overall={
+            "test_count": overall.test_count,
+            "frac_oracle_none": overall.frac_oracle_none,
+            "frac_oracle_weak": overall.frac_oracle_weak,
+            "frac_oracle_strong": overall.frac_oracle_strong,
+            "high_severity_count": overall.high_severity_count,
+            "weak_oracle_covered_line_count": overall.weak_oracle_covered_line_count,
+            "unchecked_covered_callable_count": overall.unchecked_covered_callable_count,
+            "mutation_score": overall.mutation_score,
+            "survivor_count": overall.survivor_count,
+            "mean_state_field_coverage": overall.mean_state_field_coverage,
+            "uncovered_state_field_count": overall.uncovered_state_field_count,
         },
-    }
+    ).to_dict()
 
 
 def find_symbol(
-    report: dict[str, Any], qname: str
-) -> tuple[str, dict[str, Any], str | None] | None:
+    report: MetricsReport, qname: str
+) -> tuple[str, CallableMetrics | ClassMetrics, str | None] | None:
     for path, fn in iter_callables(report):
-        if fn.get("qualified_name") == qname:
+        if fn.qualified_name == qname:
             return "callable", fn, path
     for path, cls in iter_classes(report):
-        if cls.get("qualified_name") == qname:
+        if cls.qualified_name == qname:
             return "class", cls, path
     return None
 
 
-def callable_paths(report: dict[str, Any]) -> dict[str, str]:
+def callable_paths(report: MetricsReport) -> dict[str, str]:
     mapping: dict[str, str] = {}
     for path, fn in iter_callables(report):
-        qn = fn.get("qualified_name")
-        if qn and path is not None:
-            mapping[qn] = path
+        if path is not None:
+            mapping[fn.qualified_name] = path
     return mapping
 
 
-def _finding_row(mod: dict[str, Any], test: dict[str, Any]) -> dict[str, Any] | None:
-    smells = test.get("smell_codes") or []
-    tier = test.get("oracle_tier")
+def _finding_row(mod: TestModuleReport, test: TestCaseMetrics) -> TestFindingRow | None:
+    smells = test.smell_codes
+    tier = test.oracle_tier
     if not smells and tier not in ("none", "weak"):
         return None
-    return {
-        "qualified_name": test.get("qualified_name") or test.get("name"),
-        "oracle_tier": tier,
-        "smell_codes": smells,
-        "severity": test.get("severity"),
-        "path": mod.get("path") or test.get("file"),
-        "lineno": test.get("lineno"),
-    }
+    return TestFindingRow(
+        qualified_name=test.qualified_name or test.name,
+        oracle_tier=tier,
+        smell_codes=list(smells),
+        severity=test.severity,
+        path=mod.path or test.file,
+        lineno=test.lineno,
+    )
 
 
-def _with_path(hotspot: dict[str, Any], paths: dict[str, str]) -> dict[str, Any]:
-    entry = dict(hotspot)
-    qn = hotspot.get("qualified_name", "")
-    if qn in paths:
-        entry.setdefault("path", paths[qn])
-    return entry
+def _with_path(hotspot: HotspotEntry, paths: dict[str, str]) -> HotspotEntry:
+    if hotspot.path is None and hotspot.qualified_name in paths:
+        return HotspotEntry(
+            qualified_name=hotspot.qualified_name,
+            v_poly=hotspot.v_poly,
+            nesting=hotspot.nesting,
+            cognitive=hotspot.cognitive,
+            fan_in_ext=hotspot.fan_in_ext,
+            S=hotspot.S,
+            role=hotspot.role,
+            unpaid=hotspot.unpaid,
+            reduction_like=hotspot.reduction_like,
+            dispatch_exempt=hotspot.dispatch_exempt,
+            path=paths[hotspot.qualified_name],
+        )
+    return hotspot
 
 
 def _norm_path(path: str) -> str:

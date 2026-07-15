@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import Any, Literal
+
+from py_code_metrics.serde import MappingMixin, from_mapping
 
 Role = Literal["core", "leaf", "helper"]
 CallableKind = Literal[
@@ -13,10 +15,15 @@ CallableKind = Literal[
     "staticmethod",
     "nested_function",
 ]
+OracleTier = Literal["none", "weak", "strong"]
+TestFramework = Literal["pytest", "unittest", "unknown"]
+Severity = Literal["high", "low", "info"]
+
+_OMIT_NONE = {"omit_none": True}
 
 
 @dataclass(frozen=True)
-class Thresholds:
+class Thresholds(MappingMixin):
     """Soft gates emitted in reports and used by hotspot predicates.
 
     Per-callable size (`statements`, body/header tokens) stays on each callable
@@ -31,15 +38,47 @@ class Thresholds:
     cognitive: int = 15
     lcom4_max: int = 1
 
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
-
 
 DEFAULT_THRESHOLDS = Thresholds()
 
 
 @dataclass
-class CallableMetrics:
+class SkippedFileEntry(MappingMixin):
+    path: str
+    reason: str
+
+
+@dataclass
+class ReportInput(MappingMixin):
+    root: str = ""
+    files_analyzed: int = 0
+    files_skipped: list[SkippedFileEntry] = field(default_factory=list)
+    coverage_path: str | None = field(default=None, metadata=_OMIT_NONE)
+    coverage_has_contexts: bool | None = field(default=None, metadata=_OMIT_NONE)
+    mutation_path: str | None = field(default=None, metadata=_OMIT_NONE)
+    mutation_format: str | None = field(default=None, metadata=_OMIT_NONE)
+    delta: bool | None = field(default=None, metadata=_OMIT_NONE)
+    files_in_delta: list[str] | None = field(default=None, metadata=_OMIT_NONE)
+    delta_note: str | None = field(default=None, metadata=_OMIT_NONE)
+
+
+@dataclass
+class RoleCounts(MappingMixin):
+    core: int = 0
+    leaf: int = 0
+    helper: int = 0
+
+    def bump(self, role: str) -> None:
+        if role == "core":
+            self.core += 1
+        elif role == "leaf":
+            self.leaf += 1
+        else:
+            self.helper += 1
+
+
+@dataclass
+class CallableMetrics(MappingMixin):
     name: str
     qualified_name: str
     kind: CallableKind
@@ -72,40 +111,22 @@ class CallableMetrics:
     unpaid: bool = False
     reduction_like: bool = False
 
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
-
 
 @dataclass
-class ClassMetrics:
+class ClassMetrics(MappingMixin):
     name: str
     qualified_name: str
     lineno: int
-    lcom4: int = 0
-    wmc: int = 0
-    nom: int = 0
-    dispatch_class: bool = False
-    lcom4_gate_exempt: bool = False
+    lcom4: int = field(default=0, metadata={"nest": "metrics"})
+    wmc: int = field(default=0, metadata={"nest": "metrics"})
+    nom: int = field(default=0, metadata={"nest": "metrics"})
+    dispatch_class: bool = field(default=False, metadata={"nest": "metrics"})
+    lcom4_gate_exempt: bool = field(default=False, metadata={"nest": "metrics"})
     methods: list[CallableMetrics] = field(default_factory=list)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "name": self.name,
-            "qualified_name": self.qualified_name,
-            "lineno": self.lineno,
-            "metrics": {
-                "lcom4": self.lcom4,
-                "wmc": self.wmc,
-                "nom": self.nom,
-                "dispatch_class": self.dispatch_class,
-                "lcom4_gate_exempt": self.lcom4_gate_exempt,
-            },
-            "methods": [m.to_dict() for m in self.methods],
-        }
 
 
 @dataclass
-class ModuleRollup:
+class ModuleRollup(MappingMixin):
     callable_count: int = 0
     class_count: int = 0
     sum_S: float = 0.0
@@ -122,125 +143,213 @@ class ModuleRollup:
     n_unpaid_v_poly_gt_15: int = 0
     n_unpaid_nesting_gt_3: int = 0
     n_unpaid_hotspots: int = 0
-    roles: dict[str, int] = field(default_factory=lambda: {"core": 0, "leaf": 0, "helper": 0})
-
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+    roles: RoleCounts = field(default_factory=RoleCounts)
 
 
 @dataclass
-class ModuleReport:
+class ModuleReport(MappingMixin):
     path: str
     name: str
     metrics: ModuleRollup = field(default_factory=ModuleRollup)
-    imports: list[str] = field(default_factory=list)
-    scc_id: int | None = None
+    imports: list[str] = field(default_factory=list, metadata={"nest": "imports"})
+    scc_id: int | None = field(default=None, metadata={"nest": "imports"})
     functions: list[CallableMetrics] = field(default_factory=list)
     classes: list[ClassMetrics] = field(default_factory=list)
 
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "path": self.path,
-            "name": self.name,
-            "metrics": self.metrics.to_dict(),
-            "imports": {"imports": self.imports, "scc_id": self.scc_id},
-            "functions": [f.to_dict() for f in self.functions],
-            "classes": [c.to_dict() for c in self.classes],
-        }
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> ModuleReport:
+        """Normalize legacy flat ``imports: [...]`` before generic mapping."""
+        raw = dict(data) if isinstance(data, dict) else {}
+        imports_raw = raw.get("imports")
+        if isinstance(imports_raw, list):
+            raw = {
+                **raw,
+                "imports": {"imports": imports_raw, "scc_id": raw.get("scc_id")},
+            }
+        return from_mapping(cls, raw)
 
 
 @dataclass
-class OverallReport:
-    totals: dict[str, int] = field(
-        default_factory=lambda: {
-            "modules": 0,
-            "classes": 0,
-            "functions": 0,
-            "methods": 0,
-        }
-    )
-    complexity: dict[str, Any] = field(
-        default_factory=lambda: {
-            "max_v_poly": 0,
-            "max_nesting": 0,
-            "mean_cyclomatic": 0.0,
-            "mean_cognitive": 0.0,
-            "n_v_poly_gt_15": 0,
-            "n_nesting_gt_3": 0,
-            "n_unpaid_v_poly_gt_15": 0,
-            "n_unpaid_nesting_gt_3": 0,
-            "n_unpaid_hotspots": 0,
-        }
-    )
-    etspa: dict[str, Any] = field(
-        default_factory=lambda: {
-            "sum_S": 0.0,
-            "frac_S_le_0": 0.0,
-            "frac_fan_in_le_1": 0.0,
-            "note": "Global fracs mix leaves+helpers; prefer helpers_cores for gates.",
-            "helpers_cores": {
-                "callable_count": 0,
-                "sum_S": 0.0,
-                "frac_S_le_0": 0.0,
-                "frac_fan_in_le_1": 0.0,
-            },
-        }
-    )
-    expression: dict[str, Any] = field(
-        default_factory=lambda: {
-            "mean_car": 0.0,
-            "mean_lmd": 0.0,
-            "mean_cvr": 0.0,
-            "leaves": {
-                "callable_count": 0,
-                "mean_car": 0.0,
-                "mean_lmd": 0.0,
-                "mean_nesting": 0.0,
-                "mean_cognitive": 0.0,
-            },
-        }
-    )
-    hotspots: list[dict[str, Any]] = field(default_factory=list)
-    roles: dict[str, int] = field(default_factory=lambda: {"core": 0, "leaf": 0, "helper": 0})
-    imports: dict[str, Any] = field(
-        default_factory=lambda: {
-            "edge_count": 0,
-            "cycle_count": 0,
-            "cycles": [],
-        }
-    )
-
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+class OverallTotals(MappingMixin):
+    modules: int = 0
+    classes: int = 0
+    functions: int = 0
+    methods: int = 0
 
 
 @dataclass
-class MetricsReport:
+class ComplexityBoard(MappingMixin):
+    max_v_poly: int = 0
+    max_nesting: int = 0
+    mean_cyclomatic: float = 0.0
+    mean_cognitive: float = 0.0
+    n_v_poly_gt_15: int = 0
+    n_nesting_gt_3: int = 0
+    n_unpaid_v_poly_gt_15: int = 0
+    n_unpaid_nesting_gt_3: int = 0
+    n_unpaid_hotspots: int = 0
+
+
+@dataclass
+class HelpersCoresEtspa(MappingMixin):
+    callable_count: int = 0
+    sum_S: float = 0.0
+    frac_S_le_0: float = 0.0
+    frac_fan_in_le_1: float = 0.0
+
+
+ETSPA_GLOBAL_NOTE = "Global fracs mix leaves+helpers; prefer helpers_cores for gates."
+
+
+@dataclass
+class EtspaOverall(MappingMixin):
+    sum_S: float = 0.0
+    frac_S_le_0: float = 0.0
+    frac_fan_in_le_1: float = 0.0
+    note: str = ETSPA_GLOBAL_NOTE
+    helpers_cores: HelpersCoresEtspa = field(default_factory=HelpersCoresEtspa)
+
+
+@dataclass
+class LeavesExpressionBoard(MappingMixin):
+    callable_count: int = 0
+    mean_car: float = 0.0
+    mean_lmd: float = 0.0
+    mean_nesting: float = 0.0
+    mean_cognitive: float = 0.0
+
+
+@dataclass
+class ExpressionOverall(MappingMixin):
+    mean_car: float = 0.0
+    mean_lmd: float = 0.0
+    mean_cvr: float = 0.0
+    leaves: LeavesExpressionBoard = field(default_factory=LeavesExpressionBoard)
+
+
+@dataclass
+class HotspotEntry(MappingMixin):
+    qualified_name: str
+    v_poly: int = 0
+    nesting: int = 0
+    cognitive: int = 0
+    fan_in_ext: int = 0
+    S: float = 0.0
+    role: Role = "helper"
+    unpaid: bool = True
+    reduction_like: bool = False
+    dispatch_exempt: bool = False
+    path: str | None = field(default=None, metadata=_OMIT_NONE)
+
+
+@dataclass
+class ImportsOverall(MappingMixin):
+    edge_count: int = 0
+    cycle_count: int = 0
+    cycles: list[list[str]] = field(default_factory=list)
+
+
+@dataclass
+class OverallReport(MappingMixin):
+    totals: OverallTotals = field(default_factory=OverallTotals)
+    complexity: ComplexityBoard = field(default_factory=ComplexityBoard)
+    etspa: EtspaOverall = field(default_factory=EtspaOverall)
+    expression: ExpressionOverall = field(default_factory=ExpressionOverall)
+    hotspots: list[HotspotEntry] = field(default_factory=list)
+    roles: RoleCounts = field(default_factory=RoleCounts)
+    imports: ImportsOverall = field(default_factory=ImportsOverall)
+
+
+@dataclass
+class MetricsReport(MappingMixin):
     version: int = 1
     tool: str = "py-code-metrics"
-    input: dict[str, Any] = field(default_factory=dict)
-    thresholds: dict[str, Any] = field(default_factory=lambda: DEFAULT_THRESHOLDS.to_dict())
+    input: ReportInput = field(default_factory=ReportInput)
+    thresholds: Thresholds = field(default_factory=lambda: DEFAULT_THRESHOLDS)
     overall: OverallReport = field(default_factory=OverallReport)
     modules: list[ModuleReport] = field(default_factory=list)
 
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "version": self.version,
-            "tool": self.tool,
-            "input": self.input,
-            "thresholds": self.thresholds,
-            "overall": self.overall.to_dict(),
-            "modules": [m.to_dict() for m in self.modules],
-        }
+
+@dataclass(frozen=True)
+class TestThresholds(MappingMixin):
+    __test__ = False
+
+    frac_oracle_none_warn: float = 0.10
+    prefer_strong_majority: bool = True
+    no_oracle: Severity = "high"
+    tautology: Severity = "high"
+    weak_oracle: Severity = "low"
+    swallowed_error: Severity = "high"
+    empty_body: Severity = "high"
+    weak_oracle_covered_line: Severity = "low"
+    mutation_score_warn: float = 0.85
+    unchecked_state_field: Severity = "low"
 
 
-OracleTier = Literal["none", "weak", "strong"]
-TestFramework = Literal["pytest", "unittest", "unknown"]
-Severity = Literal["high", "low", "info"]
+DEFAULT_TEST_THRESHOLDS = TestThresholds()
 
 
 @dataclass
-class TestCaseMetrics:
+class OracleHistogram(MappingMixin):
+    none: int = 0
+    weak: int = 0
+    strong: int = 0
+
+    def bump(self, tier: str) -> None:
+        if tier == "none":
+            self.none += 1
+        elif tier == "weak":
+            self.weak += 1
+        else:
+            self.strong += 1
+
+
+@dataclass
+class HighSeverityFinding(MappingMixin):
+    file: str
+    name: str
+    lineno: int
+    smell_codes: list[str] = field(default_factory=list)
+    oracle_tier: OracleTier = "none"
+
+
+@dataclass
+class WeakOracleCoveredLine(MappingMixin):
+    file: str
+    line: int
+    tests: list[str] = field(default_factory=list)
+    best_oracle_tier: OracleTier = "weak"
+
+
+@dataclass
+class MutationSurvivor(MappingMixin):
+    file: str = field(default="", metadata={"aliases": ("path",)})
+    line: int | None = None
+    id: Any = None
+    operator: Any = None
+    status: str = "survived"
+    overlap_flags: list[str] = field(default_factory=list)
+
+
+@dataclass
+class UncoveredStateField(MappingMixin):
+    class_: str = field(metadata={"key": "class"})
+    field: str
+
+
+@dataclass
+class StateFieldClassDetail(MappingMixin):
+    class_: str = field(metadata={"key": "class"})
+    coverable: list[str] = field(default_factory=list)
+    covered: list[str] = field(default_factory=list)
+    uncovered: list[str] = field(default_factory=list)
+    score: float = 0.0
+
+
+@dataclass
+class TestCaseMetrics(MappingMixin):
+    __test__ = False
+
     name: str
     qualified_name: str
     lineno: int
@@ -255,12 +364,11 @@ class TestCaseMetrics:
     exempt: bool = False
     calls_production: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
-
 
 @dataclass
-class TestModuleRollup:
+class TestModuleRollup(MappingMixin):
+    __test__ = False
+
     test_count: int = 0
     frac_oracle_none: float = 0.0
     frac_oracle_weak: float = 0.0
@@ -274,28 +382,21 @@ class TestModuleRollup:
     survivor_count: int = 0
     mean_state_field_coverage: float | None = None
 
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
-
 
 @dataclass
-class TestModuleReport:
+class TestModuleReport(MappingMixin):
+    __test__ = False
+
     path: str
     name: str
     metrics: TestModuleRollup = field(default_factory=TestModuleRollup)
     tests: list[TestCaseMetrics] = field(default_factory=list)
 
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "path": self.path,
-            "name": self.name,
-            "metrics": self.metrics.to_dict(),
-            "tests": [t.to_dict() for t in self.tests],
-        }
-
 
 @dataclass
-class TestOverallReport:
+class TestOverallReport(MappingMixin):
+    __test__ = False
+
     test_count: int = 0
     module_count: int = 0
     frac_oracle_none: float = 0.0
@@ -303,58 +404,31 @@ class TestOverallReport:
     frac_oracle_strong: float = 0.0
     mean_assertion_density: float = 0.0
     high_severity_count: int = 0
-    high_severity_findings: list[dict[str, Any]] = field(default_factory=list)
-    oracle_histogram: dict[str, int] = field(
-        default_factory=lambda: {"none": 0, "weak": 0, "strong": 0}
-    )
+    high_severity_findings: list[HighSeverityFinding] = field(default_factory=list)
+    oracle_histogram: OracleHistogram = field(default_factory=OracleHistogram)
     coverage_line: float | None = None
     coverage_branch: float | None = None
     unchecked_covered_callables: list[str] = field(default_factory=list)
-    weak_oracle_covered_lines: list[dict[str, Any]] = field(default_factory=list)
+    weak_oracle_covered_lines: list[WeakOracleCoveredLine] = field(default_factory=list)
     unchecked_covered_callable_count: int = 0
     weak_oracle_covered_line_count: int = 0
     mutation_score: float | None = None
     survivor_count: int = 0
-    survivors: list[dict[str, Any]] = field(default_factory=list)
+    survivors: list[MutationSurvivor] = field(default_factory=list)
     mean_state_field_coverage: float | None = None
-    uncovered_state_fields: list[dict[str, Any]] = field(default_factory=list)
-    state_field_classes: list[dict[str, Any]] = field(default_factory=list)
+    uncovered_state_fields: list[UncoveredStateField] = field(default_factory=list)
+    state_field_classes: list[StateFieldClassDetail] = field(default_factory=list)
     uncovered_state_field_count: int = 0
-
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
 
 
 @dataclass
-class TestMetricsReport:
+class TestMetricsReport(MappingMixin):
+    __test__ = False
+
     version: int = 1
     tool: str = "py-code-metrics"
     mode: str = "tests"
-    input: dict[str, Any] = field(default_factory=dict)
-    thresholds: dict[str, Any] = field(
-        default_factory=lambda: {
-            "frac_oracle_none_warn": 0.10,
-            "prefer_strong_majority": True,
-            "no_oracle": "high",
-            "tautology": "high",
-            "weak_oracle": "low",
-            "swallowed_error": "high",
-            "empty_body": "high",
-            "weak_oracle_covered_line": "low",
-            "mutation_score_warn": 0.85,
-            "unchecked_state_field": "low",
-        }
-    )
+    input: ReportInput = field(default_factory=ReportInput)
+    thresholds: TestThresholds = field(default_factory=lambda: DEFAULT_TEST_THRESHOLDS)
     overall: TestOverallReport = field(default_factory=TestOverallReport)
     modules: list[TestModuleReport] = field(default_factory=list)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "version": self.version,
-            "tool": self.tool,
-            "mode": self.mode,
-            "input": self.input,
-            "thresholds": self.thresholds,
-            "overall": self.overall.to_dict(),
-            "modules": [m.to_dict() for m in self.modules],
-        }
