@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from py_code_metrics.serde import MappingMixin, from_mapping
+from py_code_metrics.serde import MappingMixin
 
 Role = Literal["core", "leaf", "helper"]
 CallableKind = Literal[
@@ -155,18 +155,6 @@ class ModuleReport(MappingMixin):
     scc_id: int | None = field(default=None, metadata={"nest": "imports"})
     functions: list[CallableMetrics] = field(default_factory=list)
     classes: list[ClassMetrics] = field(default_factory=list)
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any] | None) -> ModuleReport:
-        """Normalize legacy flat ``imports: [...]`` before generic mapping."""
-        raw = dict(data) if isinstance(data, dict) else {}
-        imports_raw = raw.get("imports")
-        if isinstance(imports_raw, list):
-            raw = {
-                **raw,
-                "imports": {"imports": imports_raw, "scc_id": raw.get("scc_id")},
-            }
-        return from_mapping(cls, raw)
 
 
 @dataclass
@@ -323,7 +311,7 @@ class WeakOracleCoveredLine(MappingMixin):
 
 @dataclass
 class MutationSurvivor(MappingMixin):
-    file: str = field(default="", metadata={"aliases": ("path",)})
+    file: str = ""
     line: int | None = None
     id: Any = None
     operator: Any = None

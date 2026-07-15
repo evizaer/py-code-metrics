@@ -4,7 +4,6 @@ Convention
 ----------
 - JSON key defaults to the field name.
 - ``metadata={"key": "class"}`` renames (e.g. ``class_`` ↔ ``"class"``).
-- ``metadata={"aliases": ("path",)}`` accepts alternate keys when reading.
 - ``metadata={"omit_none": True}`` drops ``None`` on write.
 - ``metadata={"nest": "metrics"}`` groups fields under a nested object on the wire.
 - Nested dataclasses, ``list[...]``, ``X | None``, and primitives coerce recursively.
@@ -133,21 +132,14 @@ class MappingMixin:
 def _read_wire(raw: dict[str, Any], f: Any) -> Any:
     meta = f.metadata
     key = meta.get("key", f.name)
-    aliases = meta.get("aliases", ())
     nest = meta.get("nest")
     if nest:
         nested = raw.get(nest)
         if isinstance(nested, dict) and key in nested:
             return nested[key]
-        # Flat back-compat (e.g. ClassMetrics metrics also present at top level).
-        if key in raw:
-            return raw[key]
         return _MISSING
     if key in raw:
         return raw[key]
-    for alias in aliases:
-        if alias in raw:
-            return raw[alias]
     return _MISSING
 
 

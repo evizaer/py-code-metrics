@@ -8,7 +8,6 @@ from py_code_metrics.model import (
     ClassMetrics,
     HotspotEntry,
     ModuleReport,
-    MutationSurvivor,
     UncoveredStateField,
 )
 from py_code_metrics.serde import MappingMixin, from_mapping, to_mapping
@@ -29,14 +28,10 @@ def test_roundtrip_primitives_and_omit_none():
     assert back == _Sample(name="a", count=2, tags=["1"])
 
 
-def test_key_rename_and_aliases():
+def test_key_rename():
     u = UncoveredStateField.from_dict({"class": "C", "field": "f"})
     assert u.class_ == "C"
     assert u.to_dict() == {"class": "C", "field": "f"}
-
-    s = MutationSurvivor.from_dict({"path": "a.py", "line": "3"})
-    assert s.file == "a.py"
-    assert s.line == 3
 
 
 def test_nest_metrics_and_imports():
@@ -52,14 +47,12 @@ def test_nest_metrics_and_imports():
     assert cls.lcom4 == 2
     assert cls.to_dict()["metrics"]["lcom4"] == 2
 
-    # Flat back-compat for nested metric fields
-    flat = ClassMetrics.from_dict(
-        {"name": "A", "qualified_name": "m.A", "lineno": 1, "lcom4": 9}
-    )
-    assert flat.lcom4 == 9
-
     mod = ModuleReport.from_dict(
-        {"path": "a.py", "name": "a", "imports": ["b"], "scc_id": 1}
+        {
+            "path": "a.py",
+            "name": "a",
+            "imports": {"imports": ["b"], "scc_id": 1},
+        }
     )
     assert mod.imports == ["b"]
     assert mod.scc_id == 1
