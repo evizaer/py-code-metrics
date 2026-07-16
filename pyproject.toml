@@ -25,6 +25,10 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/py_code_metrics"]
 
+# Ship the adoption skill in the wheel (not dogfood). Author in .cursor/skills/.
+[tool.hatch.build.targets.wheel.force-include]
+".cursor/skills/metrics-guided-implement" = "py_code_metrics/skill_data/metrics-guided-implement"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]

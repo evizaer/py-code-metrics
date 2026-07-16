@@ -2,6 +2,15 @@
 
 Executable that scores Python code for humans and agentic development systems. It walks a directory tree, analyzes all `.py` files, and emits a hierarchical JSON report of complementary anti-spaghetti metrics (local complexity, reuse/expression shape, class cohesion, import cycles).
 
+## Adopt in your project
+
+```bash
+uv add --dev py-code-metrics          # or git/path until PyPI — see docs/adoption.md
+uv run py-code-metrics --install-for-project .
+```
+
+That post-install copies the Cursor skill `metrics-guided-implement` into `.cursor/skills/`. Full obtain options (PyPI, git, editable), `--install-for-user`, and day-one loops: [docs/adoption.md](docs/adoption.md).
+
 ## Usage
 
 ```bash

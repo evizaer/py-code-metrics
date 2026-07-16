@@ -10,6 +10,15 @@ from pathlib import Path
 from py_code_metrics.analyze import analyze_path
 from py_code_metrics.analyze_tests import analyze_tests_path
 from py_code_metrics.compare import compare, load_report
+from py_code_metrics.install_cmd import (
+    InstallError,
+    acquire_editable,
+    acquire_pip_user,
+    acquire_uv_dev,
+    format_install_summary,
+    run_project_post_install,
+    run_user_post_install,
+)
 from py_code_metrics.metrics.test_delta import changed_python_paths
 from py_code_metrics.model import MetricsReport, TestMetricsReport
 from py_code_metrics.report import report_to_json
@@ -23,6 +32,16 @@ from py_code_metrics.views import (
 
 SUBCOMMANDS = frozenset(
     {"diff", "board", "hotspots", "dou", "symbol", "snapshot", "analyze", "tests"}
+)
+
+_TOP_LEVEL_SETUP_FLAGS = frozenset(
+    {
+        "--install-for-project",
+        "--install-for-user",
+        "--uv-dev",
+        "--pip-user",
+        "--editable",
+    }
 )
 
 
@@ -188,11 +207,103 @@ def _add_path_filter_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def build_setup_parser() -> argparse.ArgumentParser:
+    """Top-level package acquire / project post-install flags (not analyze)."""
+    parser = argparse.ArgumentParser(
+        prog="py-code-metrics",
+        description=(
+            "Post-package project setup and optional package acquire helpers. "
+            "Not the same as analyzing a path."
+        ),
+    )
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument(
+        "--install-for-project",
+        type=Path,
+        metavar="ROOT",
+        help="Post-install steps for a project (copy Cursor skill into ROOT/.cursor/skills)",
+    )
+    mode.add_argument(
+        "--install-for-user",
+        action="store_true",
+        help="Copy Cursor skill into ~/.cursor/skills (personal, not committed)",
+    )
+    mode.add_argument(
+        "--uv-dev",
+        action="store_true",
+        help="Acquire package: uv add --dev py-code-metrics (cwd must be a uv project)",
+    )
+    mode.add_argument(
+        "--pip-user",
+        action="store_true",
+        help="Acquire package: python -m pip install --user py-code-metrics",
+    )
+    mode.add_argument(
+        "--editable",
+        type=Path,
+        metavar="PATH",
+        help="Acquire package: uv add --dev --editable PATH",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="With --install-for-*: overwrite divergent skill destination",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="With --install-for-*: print planned steps without writing",
+    )
+    return parser
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
+    if _is_setup_argv(argv):
+        return _main_setup(argv)
     if argv and argv[0] in SUBCOMMANDS:
         return _main_subcommand(argv)
     return _main_legacy(argv)
+
+
+def _is_setup_argv(argv: list[str]) -> bool:
+    return any(a.split("=", 1)[0] in _TOP_LEVEL_SETUP_FLAGS for a in argv)
+
+
+def _main_setup(argv: list[str]) -> int:
+    parser = build_setup_parser()
+    args = parser.parse_args(argv)
+    try:
+        if args.install_for_project is not None:
+            results = run_project_post_install(
+                args.install_for_project,
+                force=args.force,
+                dry_run=args.dry_run,
+            )
+            print(format_install_summary(results, dry_run=args.dry_run))
+            return 0
+        if args.install_for_user:
+            results = run_user_post_install(force=args.force, dry_run=args.dry_run)
+            print(format_install_summary(results, dry_run=args.dry_run))
+            return 0
+        if args.force or args.dry_run:
+            print(
+                "error: --force and --dry-run apply only to "
+                "--install-for-project / --install-for-user",
+                file=sys.stderr,
+            )
+            return 2
+        if args.uv_dev:
+            return acquire_uv_dev()
+        if args.pip_user:
+            return acquire_pip_user()
+        if args.editable is not None:
+            return acquire_editable(args.editable)
+    except InstallError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    print("error: no setup action selected", file=sys.stderr)
+    return 2
 
 
 def _main_legacy(argv: list[str]) -> int:
