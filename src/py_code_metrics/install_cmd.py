@@ -161,7 +161,7 @@ def _run_acquire(cmd: list[str], *, cwd: Path | None = None) -> int:
         completed = subprocess.run(cmd, cwd=cwd, check=False)
     except FileNotFoundError as exc:
         raise InstallError(f"command not found: {cmd[0]}") from exc
-    return int(completed.returncode)
+    return completed.returncode
 
 
 # Named steps for future extension (copy-skill is the only MVP step).

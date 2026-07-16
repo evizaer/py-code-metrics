@@ -252,7 +252,7 @@ def _restore_optional_signals(report: TestMetricsReport, saved: dict, normalized
         item for item in saved["sfc_uncovered"] if _qname_in_delta(item.class_, normalized)
     ]
     o.uncovered_state_field_count = len(o.uncovered_state_fields)
-    scores = [float(d.score) for d in o.state_field_classes]
+    scores = [d.score for d in o.state_field_classes]
     o.mean_state_field_coverage = sum(scores) / len(scores) if scores else saved["sfc_mean"]
 
 

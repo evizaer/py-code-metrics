@@ -79,7 +79,7 @@ def apply_state_field_coverage(
         UncoveredStateField(class_=d.class_, field=f) for d in details for f in d.uncovered
     ]
     report.overall.uncovered_state_field_count = len(report.overall.uncovered_state_fields)
-    scores = [float(d.score) for d in details]
+    scores = [d.score for d in details]
     report.overall.mean_state_field_coverage = sum(scores) / len(scores) if scores else None
     _attach_module_sfc(report, details, index)
 
@@ -376,7 +376,7 @@ def _index_test_infos(
             rel = str(mi.path)
         for info in extract_test_functions(mi.tree):
             out[(rel, info.qualified_name)] = info
-            out[(str(Path(rel).as_posix()), info.qualified_name)] = info
+            out[(Path(rel).as_posix(), info.qualified_name)] = info
     return out
 
 
@@ -453,25 +453,25 @@ def _oracle_exprs(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[ast.AST]
     exprs: list[ast.AST] = []
 
     class Collector(ast.NodeVisitor):
-        def visit_Assert(self, n: ast.Assert) -> None:
-            exprs.append(n.test)
+        def visit_Assert(self, node: ast.Assert) -> None:
+            exprs.append(node.test)
 
-        def visit_Call(self, n: ast.Call) -> None:
-            parts = _dotted(n.func)
+        def visit_Call(self, node: ast.Call) -> None:
+            parts = _dotted(node.func)
             if parts and parts[0] == "self" and parts[-1].lower().startswith("assert"):
-                exprs.extend(n.args)
-                exprs.extend(k.value for k in n.keywords)
-            self.generic_visit(n)
+                exprs.extend(node.args)
+                exprs.extend(k.value for k in node.keywords)
+            self.generic_visit(node)
 
-        def visit_With(self, n: ast.With) -> None:
-            for item in n.items:
+        def visit_With(self, node: ast.With) -> None:
+            for item in node.items:
                 exprs.append(item.context_expr)
-            self.generic_visit(n)
+            self.generic_visit(node)
 
-        def visit_AsyncWith(self, n: ast.AsyncWith) -> None:
-            for item in n.items:
+        def visit_AsyncWith(self, node: ast.AsyncWith) -> None:
+            for item in node.items:
                 exprs.append(item.context_expr)
-            self.generic_visit(n)
+            self.generic_visit(node)
 
     Collector().visit(node)
     return exprs
@@ -569,7 +569,7 @@ def _attach_module_sfc(
     details: list[StateFieldClassDetail],
     index: SymbolIndex,
 ) -> None:
-    score_by_class = {d.class_: float(d.score) for d in details}
+    score_by_class = {d.class_: d.score for d in details}
     for mod in report.modules:
         exercised = _module_exercised_scores(mod, score_by_class, index)
         mod.metrics.mean_state_field_coverage = (

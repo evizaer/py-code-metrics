@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from typing import Any
 
 from py_code_metrics.compare import compare, count_dou_on_paths, infer_changed_paths
 from py_code_metrics.model import MetricsReport
 
 
-def _minimal_report(**complexity_overrides):
-    complexity = {
+def _minimal_report(**complexity_overrides: Any) -> dict[str, Any]:
+    complexity: dict[str, Any] = {
         "max_v_poly": 10,
         "max_nesting": 2,
         "mean_cyclomatic": 1.0,

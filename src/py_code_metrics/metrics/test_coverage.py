@@ -133,7 +133,7 @@ def _index_tests(report: TestMetricsReport) -> dict[tuple[str, str], TestCaseMet
         for t in mod.tests:
             out[(t.file, t.qualified_name)] = t
             out[(Path(t.file).name, t.qualified_name)] = t
-            out[(str(Path(t.file).as_posix()), t.qualified_name)] = t
+            out[(Path(t.file).as_posix(), t.qualified_name)] = t
     return out
 
 
@@ -143,7 +143,7 @@ def _lookup_test(
     qname: str,
 ) -> TestCaseMetrics | None:
     hint = file_hint.replace("\\", "/")
-    for key in ((hint, qname), (Path(hint).name, qname), (str(Path(hint).as_posix()), qname)):
+    for key in ((hint, qname), (Path(hint).name, qname), (Path(hint).as_posix(), qname)):
         hit = test_by_key.get(key)
         if hit is not None:
             return hit
@@ -318,6 +318,6 @@ def _rel_to_root(root: Path, file_key: str) -> str:
     try:
         if path.is_absolute():
             return str(path.resolve().relative_to(root.resolve()))
-        return str(path.as_posix())
+        return path.as_posix()
     except ValueError:
         return str(path)

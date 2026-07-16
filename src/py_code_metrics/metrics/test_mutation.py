@@ -248,7 +248,7 @@ def _rel_to_root(root: Path, file_key: str) -> str:
     try:
         if path.is_absolute():
             return str(path.resolve().relative_to(root.resolve()))
-        return str(path.as_posix())
+        return path.as_posix()
     except ValueError:
         return str(path)
 
@@ -291,7 +291,7 @@ def _tag_overlap(
             continue
         if not _callable_in_file(info, index, file, root):
             continue
-        if _line_in_callable(info, int(line)):
+        if _line_in_callable(info, line):
             flags.append("unchecked_covered_callable")
             break
     out.overlap_flags = flags
