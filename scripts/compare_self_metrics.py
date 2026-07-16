@@ -4,7 +4,7 @@
 Thin wrapper around ``py_code_metrics.compare`` / ``py-code-metrics diff``.
 
 Usage:
-  uv run py-code-metrics src/py_code_metrics > /tmp/pcm-after.json
+  uv run py-code-metrics analyze src/py_code_metrics > /tmp/pcm-after.json
   uv run python scripts/compare_self_metrics.py /tmp/pcm-before.json /tmp/pcm-after.json
 
 Prefer:

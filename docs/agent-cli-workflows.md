@@ -17,9 +17,9 @@ Companion docs: [metrics.md](metrics.md) (signal semantics), [metrics-iteration-
 
 ---
 
-## Proposed CLI shape
+## CLI shape
 
-Keep today’s default (`py-code-metrics <path>` → full JSON) for compatibility. Add focused subcommands (or equivalent flags) as the agent primary path:
+The CLI uses explicit subcommands. `analyze <path>` emits the full structural JSON; focused subcommands are the primary agent interface:
 
 | Command | Purpose | Default payload |
 | --- | --- | --- |
@@ -364,14 +364,14 @@ Uses real subcommand stdout when available. Keep the original 2026-07-12 baselin
 
 | Payload | Bytes | Lines | How measured |
 | --- | --- | --- | --- |
-| Full structural report (today’s default CLI) | 254 779 | 8 871 | `py-code-metrics src/py_code_metrics` |
+| Full structural report | 254 779 | 8 871 | `py-code-metrics analyze src/py_code_metrics` |
 | `overall` skim only (best-case `jq` of same report) | 4 372 | 171 | Extract `overall` complexity/etspa/expression/hotspots/roles/imports |
 | Proposed `board` | 868 | 40 | Extract rollups only |
 | Proposed `hotspots` (10 unpaid) | 2 906 | 127 | Extract `overall.hotspots` |
 | Proposed `symbol` (one hotspot callable) | 808 | 37 | Extract one callable dict |
 | Proposed `diff --json` (identical before/after) | 575 | 38 | Simulated gate JSON |
 | `compare_self_metrics.py` text (today) | 765 | 18 | Script stdout |
-| Full `--tests .` report | 42 665 | 1 437 | `py-code-metrics --tests .` |
+| Full tests report | 42 665 | 1 437 | `py-code-metrics tests . --full` |
 | Proposed tests findings view | 3 631 | 148 | Weak/none oracle + smell rows only |
 
 **Workflow totals (bytes the agent must read)**

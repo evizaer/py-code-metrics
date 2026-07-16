@@ -30,10 +30,6 @@ from py_code_metrics.views import (
     symbol_view,
 )
 
-SUBCOMMANDS = frozenset(
-    {"diff", "board", "hotspots", "dou", "symbol", "snapshot", "analyze", "tests"}
-)
-
 _TOP_LEVEL_SETUP_FLAGS = frozenset(
     {
         "--install-for-project",
@@ -43,54 +39,6 @@ _TOP_LEVEL_SETUP_FLAGS = frozenset(
         "--editable",
     }
 )
-
-
-def build_parser() -> argparse.ArgumentParser:
-    """Legacy flat parser: ``py-code-metrics [--tests] <path>``."""
-    parser = argparse.ArgumentParser(
-        prog="py-code-metrics",
-        description=(
-            "Compute anti-spaghetti structural metrics, or static test-quality "
-            "(oracle/smell) metrics with --tests. Prefer subcommands "
-            "(board, hotspots, dou, symbol, diff, snapshot, tests) for agent workflows."
-        ),
-    )
-    parser.add_argument(
-        "path",
-        type=Path,
-        help="Directory (or single .py file) to analyze recursively",
-    )
-    parser.add_argument(
-        "--tests",
-        action="store_true",
-        help="Analyze test modules for oracle strength and fake-test smells",
-    )
-    parser.add_argument(
-        "--coverage",
-        type=Path,
-        default=None,
-        metavar="FILE",
-        help="With --tests: ingest coverage.py JSON (floors + optional contexts)",
-    )
-    parser.add_argument(
-        "--mutation",
-        type=Path,
-        default=None,
-        metavar="FILE",
-        help="With --tests: ingest mutmut / Cosmic Ray / PCM mutation JSON",
-    )
-    parser.add_argument(
-        "--delta",
-        action="store_true",
-        help="With --tests: filter findings to git-changed *.py paths",
-    )
-    parser.add_argument(
-        "--indent",
-        type=int,
-        default=2,
-        help="JSON indentation (default: 2)",
-    )
-    return parser
 
 
 def build_subcommand_parser() -> argparse.ArgumentParser:
@@ -156,7 +104,7 @@ def build_subcommand_parser() -> argparse.ArgumentParser:
     p_tests.add_argument(
         "--full",
         action="store_true",
-        help="Emit full hierarchical test report (legacy shape)",
+        help="Emit the full hierarchical test report",
     )
     p_tests.add_argument("--limit", type=int, default=None)
     p_tests.add_argument("--indent", type=int, default=2)
@@ -261,9 +209,7 @@ def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if _is_setup_argv(argv):
         return _main_setup(argv)
-    if argv and argv[0] in SUBCOMMANDS:
-        return _main_subcommand(argv)
-    return _main_legacy(argv)
+    return _main_subcommand(argv)
 
 
 def _is_setup_argv(argv: list[str]) -> bool:
@@ -304,45 +250,6 @@ def _main_setup(argv: list[str]) -> int:
         return 2
     print("error: no setup action selected", file=sys.stderr)
     return 2
-
-
-def _main_legacy(argv: list[str]) -> int:
-    parser = build_parser()
-    args = parser.parse_args(argv)
-    path: Path = args.path
-    if not path.exists():
-        print(f"error: path does not exist: {path}", file=sys.stderr)
-        return 2
-    if args.coverage is not None and not args.tests:
-        print("error: --coverage requires --tests", file=sys.stderr)
-        return 2
-    if args.mutation is not None and not args.tests:
-        print("error: --mutation requires --tests", file=sys.stderr)
-        return 2
-    if args.delta and not args.tests:
-        print("error: --delta requires --tests", file=sys.stderr)
-        return 2
-    if args.coverage is not None and not args.coverage.exists():
-        print(f"error: coverage file does not exist: {args.coverage}", file=sys.stderr)
-        return 2
-    if args.mutation is not None and not args.mutation.exists():
-        print(f"error: mutation file does not exist: {args.mutation}", file=sys.stderr)
-        return 2
-    if args.tests:
-        try:
-            report = analyze_tests_path(
-                path,
-                coverage_path=args.coverage,
-                mutation_path=args.mutation,
-                delta=args.delta,
-            )
-        except ValueError as exc:
-            print(f"error: {exc}", file=sys.stderr)
-            return 2
-    else:
-        report = analyze_path(path)
-    sys.stdout.write(report_to_json(report, indent=args.indent))
-    return 0
 
 
 def _main_subcommand(argv: list[str]) -> int:

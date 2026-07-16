@@ -124,7 +124,7 @@ def test_cli_install_for_project_does_not_analyze_dot(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Regression: setup flags must not fall through to legacy analyze of ROOT."""
+    """Regression: setup flags must not be parsed as analysis commands."""
     monkeypatch.chdir(tmp_path)
     (tmp_path / "dummy.py").write_text("x = 1\n", encoding="utf-8")
     code = main(["--install-for-project", "."])

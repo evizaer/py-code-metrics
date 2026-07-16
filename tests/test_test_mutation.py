@@ -72,7 +72,15 @@ def test_cli_mutation_flag():
     old = sys.stdout
     sys.stdout = buf
     try:
-        code = main(["--tests", "--mutation", str(SUT / "mutation_pcm_v1.json"), str(SUT)])
+        code = main(
+            [
+                "tests",
+                "--full",
+                "--mutation",
+                str(SUT / "mutation_pcm_v1.json"),
+                str(SUT),
+            ]
+        )
     finally:
         sys.stdout = old
     assert code == 0
@@ -81,9 +89,9 @@ def test_cli_mutation_flag():
     assert data["overall"]["mutation_score"] == pytest.approx(0.8)
 
 
-def test_cli_mutation_requires_tests():
-    code = main(["--mutation", str(SUT / "mutation_pcm_v1.json"), str(SUT)])
-    assert code == 2
+def test_cli_mutation_is_not_a_global_option():
+    with pytest.raises(SystemExit, match="2"):
+        main(["--mutation", str(SUT / "mutation_pcm_v1.json"), str(SUT)])
 
 
 def test_unknown_mutation_shape(tmp_path: Path):

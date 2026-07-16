@@ -106,8 +106,8 @@ def test_tests_full_flag():
     assert "modules" in data
 
 
-def test_legacy_cli_still_full():
-    code, stdout, _ = _capture([str(FIXTURE)])
+def test_analyze_cli_emits_full_report():
+    code, stdout, _ = _capture(["analyze", str(FIXTURE)])
     assert code == 0
     data = json.loads(stdout)
     assert data["tool"] == "py-code-metrics"

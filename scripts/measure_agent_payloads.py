@@ -2,7 +2,7 @@
 """Measure agent-facing CLI payload sizes for workflow success tracking.
 
 Prints single-payload and workflow totals for ``src/py_code_metrics`` (and
-``--tests .``), preferring real subcommand stdout when available.
+``tests . --full``), preferring real subcommand stdout when available.
 
 Usage:
   uv run python scripts/measure_agent_payloads.py
@@ -46,11 +46,11 @@ def _try_cli(*args: str) -> str | None:
 
 
 def main() -> int:
-    full = _uv("py-code-metrics", str(PKG)).stdout
+    full = _uv("py-code-metrics", "analyze", str(PKG)).stdout
     full_b, full_l = _size(full)
     data = json.loads(full)
 
-    tests_full = _uv("py-code-metrics", "--tests", str(ROOT)).stdout
+    tests_full = _uv("py-code-metrics", "tests", str(ROOT), "--full").stdout
     tests_b, tests_l = _size(tests_full)
     tests_data = json.loads(tests_full)
 
@@ -114,13 +114,7 @@ def main() -> int:
         tests_findings_out = json.dumps(findings_view(tests_report).to_dict(), indent=2) + "\n"
         tests_src = "simulated"
     else:
-        # If CLI still emits full tree (legacy only), detect and simulate findings.
-        parsed = json.loads(tests_findings_out)
-        if parsed.get("view") != "tests_findings":
-            tests_findings_out = json.dumps(findings_view(tests_report).to_dict(), indent=2) + "\n"
-            tests_src = "simulated"
-        else:
-            tests_src = "cli"
+        tests_src = "cli"
 
     overall = data.get("overall") or {}
     overall_only = {

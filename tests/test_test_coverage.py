@@ -7,6 +7,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 from py_code_metrics.analyze_tests import analyze_tests_path
 from py_code_metrics.cli import main
 from py_code_metrics.metrics.test_coverage import load_coverage_json, parse_run_context
@@ -76,7 +78,15 @@ def test_cli_coverage_flag():
     old = sys.stdout
     sys.stdout = buf
     try:
-        code = main(["--tests", "--coverage", str(SUT / "coverage_with_contexts.json"), str(SUT)])
+        code = main(
+            [
+                "tests",
+                "--full",
+                "--coverage",
+                str(SUT / "coverage_with_contexts.json"),
+                str(SUT),
+            ]
+        )
     finally:
         sys.stdout = old
     assert code == 0
@@ -86,6 +96,6 @@ def test_cli_coverage_flag():
     assert data["overall"]["weak_oracle_covered_line_count"] >= 1
 
 
-def test_cli_coverage_requires_tests():
-    code = main(["--coverage", str(SUT / "coverage_no_contexts.json"), str(SUT)])
-    assert code == 2
+def test_cli_coverage_is_not_a_global_option():
+    with pytest.raises(SystemExit, match="2"):
+        main(["--coverage", str(SUT / "coverage_no_contexts.json"), str(SUT)])

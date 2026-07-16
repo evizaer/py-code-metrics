@@ -52,7 +52,7 @@ def test_cli_runs(tmp_path: Path):
     old = sys.stdout
     sys.stdout = buf
     try:
-        code = main([str(FIXTURE)])
+        code = main(["analyze", str(FIXTURE)])
     finally:
         sys.stdout = old
     assert code == 0

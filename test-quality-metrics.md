@@ -188,7 +188,7 @@ Fit with existing package layout:
 | Smells / fake codes | `metrics/test_smells.py` (codes aligned with rotten-green / falsegreen families) |
 | Coverage ingest | `metrics/test_coverage.py` (read `coverage.json`, no runner required for v1) |
 | Mutation ingest | `metrics/test_mutation.py` (read mutmut/Cosmic Ray export) |
-| CLI | `py-code-metrics --tests PATH` or subcommand `py-code-metrics tests PATH` |
+| CLI | `py-code-metrics tests PATH` |
 | Analyze orchestration | `analyze_tests_path` parallel to `analyze_path` |
 
 ### 5.4 Per-test metrics (v1 — static)

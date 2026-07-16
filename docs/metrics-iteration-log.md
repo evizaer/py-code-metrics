@@ -486,3 +486,15 @@ Removing the statements threshold correctly removed a fragmentation incentive, b
 - **Guided well:** legacy bags on untouched modules no longer block an edit that only touches other files.
 - **Product next:** P2 half-shell / L2; dogfood high-impact ingest bags.
 
+---
+
+## Round 10 — obsolete CLI removal (2026-07-16)
+
+**Gate:** PASS; unpaid hotspots 10→10, max `v_poly` 19→19, delta-path DOU 3→3.
+
+### Metrics feedback
+
+- **Metrics-caused volume:** measurement added no refactor work; the requested change was deletion, and the gate confirmed it introduced no structural debt.
+- **Mislead / noise:** `helpers_cores.sum_S` fell 2612→1669 because removing the dead flat-parser path removed counted code. Treating that aggregate as a monotonic goal would discourage useful deletion; the complementary gate correctly did not fail.
+- **Product change?** None. Keep `sum_S` diagnostic rather than a deletion-sensitive hard gate.
+

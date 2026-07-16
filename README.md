@@ -18,8 +18,8 @@ That post-install copies the Cursor skill `metrics-guided-implement` into `.curs
 uv sync
 
 # Full hierarchical JSON (humans / archival)
-uv run py-code-metrics /path/to/project
-uv run python -m py_code_metrics /path/to/project
+uv run py-code-metrics analyze /path/to/project
+uv run python -m py_code_metrics analyze /path/to/project
 
 # Agent-oriented views (prefer these mid-edit — see docs/agent-cli-workflows.md)
 uv run py-code-metrics snapshot src/py_code_metrics -o /tmp/pcm.json
@@ -28,17 +28,14 @@ uv run py-code-metrics hotspots -f /tmp/pcm.json
 uv run py-code-metrics symbol -f /tmp/pcm.json pkg.mod.fn
 uv run py-code-metrics diff --json /tmp/before.json /tmp/after.json
 
-# Test-quality findings (compact); --full for the legacy tree
+# Test-quality findings (compact); --full for the hierarchical report
 uv run py-code-metrics tests /path/to/project
 uv run py-code-metrics tests /path/to/project --delta
 uv run py-code-metrics tests /path/to/project --coverage coverage.json --full
 uv run py-code-metrics tests /path/to/project --mutation mutants/mutmut-cicd-stats.json --full
-
-# Legacy test flags still emit the full tree
-uv run py-code-metrics --tests /path/to/project
 ```
 
-## Test-quality mode (`--tests`)
+## Test-quality mode (`tests`)
 
 Static oracle/smell analysis (P0), production linkage + optional coverage (P1), and mutation ingest + always-on state-field coverage (P2):
 

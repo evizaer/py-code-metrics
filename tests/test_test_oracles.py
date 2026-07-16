@@ -108,7 +108,7 @@ def test_cli_tests_flag():
     old = sys.stdout
     sys.stdout = buf
     try:
-        code = main(["--tests", str(FAKE)])
+        code = main(["tests", "--full", str(FAKE)])
     finally:
         sys.stdout = old
     assert code == 0

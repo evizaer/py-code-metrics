@@ -6,8 +6,8 @@ Two report modes:
 
 | Mode | CLI | Focus |
 | --- | --- | --- |
-| Structural (default) | `py-code-metrics <path>` | Anti-spaghetti shape: complexity, reuse, DOU, expression style, cohesion, imports |
-| Test quality | `py-code-metrics --tests <path>` | Oracle strength, smells, SUT linkage, optional coverage floors |
+| Structural | `py-code-metrics analyze <path>` | Anti-spaghetti shape: complexity, reuse, DOU, expression style, cohesion, imports |
+| Test quality | `py-code-metrics tests <path>` | Oracle strength, smells, SUT linkage, optional coverage floors |
 
 The design premise is Goodhart pressure: optimizing any single axis invites a cheat that another axis should make worse. Soft thresholds appear under `thresholds` in JSON; they inform hotspot predicates and dashboards but are not exit codes yet.
 
