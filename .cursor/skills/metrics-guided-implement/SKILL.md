@@ -65,14 +65,17 @@ uv run py-code-metrics snapshot "$SRC" -o /tmp/pcm-after.json
 uv run py-code-metrics diff --json /tmp/pcm-before.json /tmp/pcm-after.json
 ```
 
-Gate must **PASS** (exit 0). Failures: rising `n_unpaid_hotspots`, or rising
-`max_v_poly` on an unpaid non-`reduction_like` symbol.
+Gate must **PASS** (exit 0). Failures: rising `n_unpaid_hotspots`, rising
+`max_v_poly` on an unpaid non-`reduction_like` symbol, or rising
+`n_dou_sites_on_delta` (L1 DOU on changed paths only — inferred from the
+snapshot pair, or scoped with `diff --paths` / `diff --delta`).
 
 On failure or ambiguity (small payloads only):
 
 ```bash
 uv run py-code-metrics hotspots -f /tmp/pcm-after.json
 uv run py-code-metrics board -f /tmp/pcm-after.json
+uv run py-code-metrics dou -f /tmp/pcm-after.json
 uv run py-code-metrics symbol -f /tmp/pcm-after.json some.module.fn
 ```
 
@@ -83,10 +86,10 @@ Also check the board by eye via `board` / `hotspots` / `dou` (not the full snaps
 | `n_unpaid_hotspots` / unpaid nest & v_poly counts | Flat or down |
 | `helpers_cores.sum_S` / `helpers_cores.frac_fan_in≤1` | Better or stable (ignore global `sum_S` noise from tiny new leaves) |
 | `expression.leaves` CAR | Not collapsing into mutation-heavy helpers |
-| `dou.n_dou_sites` on touched paths | Flat or down (P0: emit-only in `diff`; still fix regressions you introduced) |
+| `n_dou_sites_on_delta` (in `diff`) | Flat or down — corpus `dou.n_dou_sites` alone is not the gate |
 | New symbols in `hotspots` | None that you introduced unpaid |
 
-If `dou` rose on paths you edited: introduce a **`@dataclass`** (frozen when immutable), thread it, pick the highest-impact `dou_hotspots[]` row first. Do **not** remediate with TypedDict or a one-field `data: dict[str, Any]` wrapper.
+If `n_dou_sites_on_delta` rose: introduce a **`@dataclass`** (frozen when immutable), thread it, pick the highest-impact `dou_hotspots[]` row on the delta paths first. Do **not** remediate with TypedDict or a one-field `data: dict[str, Any]` wrapper.
 
 If you only touched tests with no production-code change, skip the structural
 gate; still run the project's tests, then the **Test-quality pass** below.

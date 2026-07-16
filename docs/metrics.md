@@ -339,7 +339,7 @@ Assignments include `=`, annotated assigns with values, and augmented assigns. H
 
 **Why include them.** Agent action queue for introducing dataclasses; impact ranking beats random bag conversion. CLI: `py-code-metrics dou`.
 
-**Counter-balances.** Whole-package DOU as a hard gate (P0 is emit-only; P1 gates **delta paths** only). Homogeneous indexes and wire coerce stay green.
+**Counter-balances.** Whole-package DOU as a hard gate — **`diff` gates `n_dou_sites_on_delta` only** (changed paths via snapshot inference or `--paths` / `--delta`). Homogeneous indexes and wire coerce stay green.
 
 ### Import graph (`overall.imports` / per-module `imports`)
 
@@ -499,12 +499,12 @@ Per-callable `statements` / `body_tokens` / `header_tokens` remain in the report
 
 **Test defaults:** `frac_oracle_none_warn`, smell severities, `prefer_strong_majority`, `mutation_score_warn` (0.85), `unchecked_state_field`.
 
-Self-analysis gate script (`scripts/compare_self_metrics.py`) fails if `n_unpaid_hotspots` or `max_v_poly` rises between snapshots—see README and `docs/metrics-iteration-log.md`.
+Self-analysis gate (`py-code-metrics diff`) fails if `n_unpaid_hotspots`, unpaid `max_v_poly`, or `n_dou_sites_on_delta` rises between snapshots—see README and `docs/metrics-iteration-log.md`.
 
 ---
 
 ## Not yet implemented
 
-Deferred from research notes (not in the current report): TCC, CBO, ATFD, God Class, RFC′, Martin package metrics, Halstead/ABC, layer contracts, PIF, DOU P1 delta-path `diff` gate / L2 dict literals / half-shell attrs, and enforced CI exit codes beyond the optional self-compare script (P3).
+Deferred from research notes (not in the current report): TCC, CBO, ATFD, God Class, RFC′, Martin package metrics, Halstead/ABC, layer contracts, PIF, DOU P2 half-shell attrs / L2 dict literals, and enforced CI exit codes beyond the optional self-compare script (P3).
 
-DOU **P0** (L1 annotations + impact + `dou` / board views; emit-only in `diff`) is implemented — see above and [`dataclass-structure-enforcement.md`](dataclass-structure-enforcement.md).
+DOU **P0+P1** (L1 annotations + impact + views; `diff` fails on rising `n_dou_sites_on_delta`) is implemented — see above and [`dataclass-structure-enforcement.md`](dataclass-structure-enforcement.md).

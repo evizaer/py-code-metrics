@@ -350,10 +350,15 @@ def _norm_path(path: str) -> str:
     return path.replace("\\", "/")
 
 
-def _path_in_filter(path: str, delta_paths: set[str]) -> bool:
+def path_in_filter(path: str, delta_paths: set[str]) -> bool:
+    """True if *path* matches any entry in *delta_paths* (exact or suffix)."""
     p = _norm_path(path)
     if not p:
         return False
     if p in delta_paths:
         return True
     return any(p.endswith("/" + d) or p.endswith(d) for d in delta_paths)
+
+
+def _path_in_filter(path: str, delta_paths: set[str]) -> bool:
+    return path_in_filter(path, delta_paths)

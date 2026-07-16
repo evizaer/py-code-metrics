@@ -473,3 +473,16 @@ Removing the statements threshold correctly removed a fragmentation incentive, b
 - **Expected noise:** first `n_dou_sites` delta vs pre-DOU snapshots is 0→N (defaults), not a regression signal until both sides are v2.
 - **Product next:** P1 delta-path DOU gate; optional half-shell / L2; dogfood high-impact ingest bags into dataclasses.
 
+---
+
+## Round 9 — DOU P1 delta gate (2026-07-15)
+
+**Intent:** Fail `diff` when L1 DOU rises on changed paths only (`n_dou_sites_on_delta`); corpus `n_dou_sites` stays informational.
+**Mechanism:** Infer delta paths from module fingerprints between snapshots (or `diff --paths` / `--delta`).
+**Gate:** same unpaid-hotspot predicates + DOU-on-delta.
+
+### Metrics feedback
+
+- **Guided well:** legacy bags on untouched modules no longer block an edit that only touches other files.
+- **Product next:** P2 half-shell / L2; dogfood high-impact ingest bags.
+

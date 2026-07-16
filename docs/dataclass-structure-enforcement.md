@@ -1,7 +1,7 @@
 # Dict overuse → structured types (DOU)
 
-**Status.** P0 implemented (L1 + impact + `dou`/`board`/`symbol`; `diff` emits
-`n_dou_sites` only — **no** fail). Research item DOU in
+**Status.** P1 implemented (L1 + impact + views; `diff` fails when
+`n_dou_sites_on_delta` rises). Research item DOU in
 [`TODO.md`](TODO.md).  
 **Product frame.** `py-code-metrics` is a toolkit that steers agents toward
 high-quality Python with **objective boards and exit codes**, not prompt essays
@@ -257,7 +257,7 @@ replace prompt crafting.
 | Phase | Behavior |
 | --- | --- |
 | **P0** | Emit L1 + impact + `dou_hotspots[]`; **no** `diff` fail |
-| **P1** | `diff` fails if L1 DOU count **on delta paths** rose (changed `*.py` only) |
+| **P1** | `diff` fails if L1 DOU count **on delta paths** rose (changed `*.py` only) — **done** |
 | **P2** | Half-shell fields; optional L2; wire-module allowlist |
 
 **Delta-first is mandatory for the gate.** Whole-package DOU remains available

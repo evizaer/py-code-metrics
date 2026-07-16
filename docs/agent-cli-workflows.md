@@ -96,6 +96,7 @@ There is no “design fail” exit code; judgment stays in
 
 Primary fail: `n_unpaid_hotspots` rose.  
 Secondary fail: `max_v_poly` rose on an unpaid, non-`reduction_like` symbol.  
+DOU fail: `n_dou_sites_on_delta` rose (L1 sites on changed `*.py` only — inferred from the snapshot pair, or `diff --paths` / `--delta`). Corpus `n_dou_sites` is informational.  
 Informational only: global `sum_S` noise from new tiny leaves; prefer `helpers_cores.*`.
 
 Promote today’s `scripts/compare_self_metrics.py` into `diff` (same semantics, first-class exit codes + `--json`).
@@ -278,17 +279,19 @@ Compact, versioned envelopes (illustrative):
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "view": "diff",
   "pass": true,
   "failures": [],
   "deltas": {
     "n_unpaid_hotspots": [0, 0],
     "max_v_poly": [0, 0],
-    "n_dou_sites": [0, 0]
+    "n_dou_sites": [0, 0],
+    "n_dou_sites_on_delta": [0, 0]
   },
   "hotspots_added": [],
-  "hotspots_removed": []
+  "hotspots_removed": [],
+  "dou_delta_paths": []
 }
 ```
 

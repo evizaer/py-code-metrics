@@ -90,6 +90,7 @@ def build_subcommand_parser() -> argparse.ArgumentParser:
         help="Emit compact JSON gate envelope instead of text",
     )
     p_diff.add_argument("--indent", type=int, default=2)
+    _add_path_filter_args(p_diff)
 
     for name, help_text in (
         ("board", "Complementary rollups only"),
@@ -178,12 +179,12 @@ def _add_path_filter_args(parser: argparse.ArgumentParser) -> None:
         nargs="*",
         default=None,
         metavar="FILE",
-        help="Restrict hotspot list to these paths",
+        help="Restrict to these *.py paths (hotspots/dou filter; diff DOU gate scope)",
     )
     parser.add_argument(
         "--delta",
         action="store_true",
-        help="Restrict hotspot list to git-changed *.py paths",
+        help="Use git-changed *.py paths (hotspots/dou filter; diff DOU gate scope)",
     )
 
 
@@ -261,12 +262,33 @@ def _cmd_diff(args: argparse.Namespace) -> int:
     except json.JSONDecodeError as exc:
         print(f"error: invalid JSON: {exc}", file=sys.stderr)
         return 2
-    code, lines, diff_dict = compare(before, after)
+    delta_paths = _resolve_diff_delta_paths(args, after)
+    code, lines, diff_dict = compare(before, after, delta_paths=delta_paths)
     if args.json:
         sys.stdout.write(json.dumps(diff_dict, indent=args.indent) + "\n")
     else:
         print("\n".join(lines))
     return code
+
+
+def _resolve_diff_delta_paths(
+    args: argparse.Namespace,
+    after: MetricsReport,
+) -> set[str] | None:
+    """Explicit --paths/--delta for DOU gate; None → infer from snapshot fingerprints."""
+    explicit = bool(getattr(args, "paths", None)) or bool(getattr(args, "delta", False))
+    if not explicit:
+        return None
+    paths: set[str] = set()
+    if args.paths:
+        paths.update(str(p).replace("\\", "/") for p in args.paths)
+    if args.delta:
+        root = _report_root(after, args)
+        changed, note = changed_python_paths(root)
+        if note and not changed:
+            print(f"warning: --delta: {note}", file=sys.stderr)
+        paths.update(p.replace("\\", "/") for p in changed)
+    return paths
 
 
 def _cmd_snapshot(args: argparse.Namespace) -> int:
