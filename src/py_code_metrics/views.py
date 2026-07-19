@@ -12,6 +12,7 @@ from py_code_metrics.model import (
     DouHotspotEntry,
     HotspotEntry,
     MetricsReport,
+    ModuleHubEntry,
     TestCaseMetrics,
     TestMetricsReport,
     TestModuleReport,
@@ -30,9 +31,56 @@ class BoardView:
     dou: dict[str, Any] = field(default_factory=dict)
     roles: dict[str, int] = field(default_factory=dict)
     imports: dict[str, int] = field(default_factory=dict)
+    module_depth: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+@dataclass
+class ModuleBoardRow(ModuleHubEntry):
+    """Per-module depth row; extends hub fields with PTR / impl surface."""
+
+    ptr: float = 0.0
+    instability: float = 0.0
+    f_impl: int = 0
+    c_iface: float = 0.0
+    n_public_exports: int = 0
+    role: str = "library"
+    sum_public_S: float = 0.0
+
+
+@dataclass
+class ModuleBoardView:
+    version: int
+    view: str = "module-board"
+    sum_piw: float = 0.0
+    n_low_mdi: int = 0
+    low_mdi_threshold: float = 10.0
+    mean_mdi: float = 0.0
+    mean_piw: float = 0.0
+    mean_ptr: float = 0.0
+    modules: list[ModuleBoardRow] = field(default_factory=list)
+    hubs: list[ModuleHubEntry] = field(default_factory=list)
+    filter: dict[str, Any] | None = None
+
+    def to_dict(self):
+        # Untyped return matches sibling view leaves; avoid new DOU site on delta.
+        out: dict[str, Any] = {
+            "version": self.version,
+            "view": self.view,
+            "sum_piw": self.sum_piw,
+            "n_low_mdi": self.n_low_mdi,
+            "low_mdi_threshold": self.low_mdi_threshold,
+            "mean_mdi": self.mean_mdi,
+            "mean_piw": self.mean_piw,
+            "mean_ptr": self.mean_ptr,
+            "modules": [m.to_dict() for m in self.modules],
+            "hubs": [h.to_dict() for h in self.hubs],
+        }
+        if self.filter is not None:
+            out["filter"] = self.filter
+        return out
 
 
 @dataclass
@@ -135,6 +183,7 @@ def iter_classes(report: MetricsReport) -> Iterator[tuple[str | None, ClassMetri
 
 def board_view(report: MetricsReport) -> BoardView:
     overall = report.overall
+    md = overall.module_depth
     return BoardView(
         version=report.version,
         complexity=overall.complexity.to_dict(),
@@ -143,7 +192,69 @@ def board_view(report: MetricsReport) -> BoardView:
         dou=overall.dou.to_dict(),
         roles=overall.roles.to_dict(),
         imports={"cycle_count": overall.imports.cycle_count},
+        module_depth={
+            "sum_piw": md.sum_piw,
+            "n_low_mdi": md.n_low_mdi,
+            "mean_mdi": md.mean_mdi,
+            "mean_ptr": md.mean_ptr,
+        },
     )
+
+
+def module_board_view(
+    report: MetricsReport,
+    *,
+    limit: int | None = None,
+    path_filter: set[str] | None = None,
+) -> ModuleBoardView:
+    """Per-module depth board sorted by shallow-wide risk (low MDI, high PIW)."""
+    rows: list[ModuleBoardRow] = []
+    for mod in report.modules:
+        if path_filter and not _path_in_filter(mod.path, {_norm_path(p) for p in path_filter}):
+            continue
+        d = mod.depth
+        rows.append(
+            ModuleBoardRow(
+                path=mod.path,
+                name=mod.name,
+                mdi=d.mdi,
+                piw=d.piw,
+                ptr=d.ptr,
+                ca=d.ca,
+                ce=d.ce,
+                instability=d.instability,
+                hub_risk=d.hub_risk,
+                f_impl=d.f_impl,
+                c_iface=d.c_iface,
+                n_public_exports=d.n_public_exports,
+                role=d.role,
+                sum_public_S=d.sum_public_S,
+            )
+        )
+    rows.sort(key=lambda r: (0 if r.role == "library" else 1, r.mdi, -r.piw, r.path))
+    if limit is not None:
+        rows = rows[:limit]
+    md = report.overall.module_depth
+    view = ModuleBoardView(
+        version=report.version,
+        sum_piw=md.sum_piw,
+        n_low_mdi=md.n_low_mdi,
+        low_mdi_threshold=md.low_mdi_threshold,
+        mean_mdi=md.mean_mdi,
+        mean_piw=md.mean_piw,
+        mean_ptr=md.mean_ptr,
+        modules=rows,
+        hubs=list(md.hubs),
+    )
+    if path_filter is not None:
+        view.filter = {
+            "paths": sorted(path_filter),
+            "note": (
+                "Module list filtered to listed paths; "
+                "corpus sum_piw / n_low_mdi remain overall counts."
+            ),
+        }
+    return view
 
 
 def hotspots_view(

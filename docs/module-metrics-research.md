@@ -2,10 +2,12 @@
 
 **Purpose.** Decide whether `py-code-metrics` should add **module-native** metrics (beyond rolling up callables), and which combination best drives:
 
-1. **Deep modules** — Ousterhout’s *A Philosophy of Software Design*: maximize \text{functionality} / \text{interface complexity}.
+1. **Deep modules** — Ousterhout’s *A Philosophy of Software Design*: maximize $\text{functionality} / \text{interface complexity}$.
 2. **Reusable layered components** — Muratori’s [Designing and Evaluating Reusable Components (2004)](https://caseymuratori.com/blog_0024): eliminate *integration discontinuities* so clients can deepen integration gradually across tiers.
 
 **Verdict.** Yes — add module metrics, but **not** as a second copy of function-complexity averages. Use a small complementary board: **interface depth**, **cross-module dependency shape**, and **integration-tier continuity**. Martin package metrics and import cycles remain architecture rails; alone they do not promote depth or gradual reuse. Prefer **delta / hotspot** use over “maximize module depth” global scores.
+
+**Status (2026-07-19).** P1 implemented in-tree: per-module `depth` (MDI, PIW, PTR, import Ca/Ce/I/hub), corpus `overall.module_depth` (Σ PIW, `n_low_mdi`), CLI `module-board` + `board.module_depth` slice. P2 IC / package rollups and P3 layer contracts remain open. Dogfood notes: `[metrics-iteration-log.md](metrics-iteration-log.md)` Round 11.
 
 ---
 
@@ -96,7 +98,7 @@ Checklist proxies (evaluative, not numerical): immediate-mode equivalents for re
 
 ### 3.1 Martin package metrics (Ca, Ce, I, A, D)
 
-Afferent/efferent coupling, instability I = Ce/(Ca+Ce), abstractness A, distance from main sequence D = |A+I-1|.[^\wikipedia-pkg][^martin-ood]
+Afferent/efferent coupling, instability $I = Ce/(Ca+Ce)$, abstractness $A$, distance from main sequence $D = |A+I-1|$.[^\wikipedia-pkg][^martin-ood]
 
 Strong for **Stable Dependencies / Stable Abstractions** and zone-of-pain detection. Weak for Ousterhout depth (a stable abstract package can still be a shallow re-export) and for Muratori granularity/retention/flow (no API-tier notion). **Keep as architecture rails**, not the depth/reuse board.
 
@@ -108,13 +110,13 @@ These enforce **directional layering**. They do **not** create deep modules — 
 
 ### 3.3 Henry–Kafura / fan-in×fan-out
 
-Environmental complexity $$\propto length \times (fan\text{-}in \times fan\text{-}out)^2$$.[^\henry-kafura]
+Environmental complexity $\propto \textit{length} \times (\textit{fan-in} \times \textit{fan-out})^2$.[^\henry-kafura]
 
 At module scale: hubs with high fan-in *and* high fan-out are risk. For depth/reuse prefer **high import Ca with low interface width** (optionally confirmed by high external call fan-in) — not “minimize all coupling.”
 
 ### 3.4 Ad-hoc “depth ratio” heuristics
 
-Practitioners approximate Ousterhout depth as implementation size vs interface size (e.g. LOC implementation ≫ interface description; few methods with few params).[^wondelai-deep] Size alone is *not* Ousterhout’s metric — functionality/interface is — so any LOC ratio must pair with **API width** and **leakage** signals.
+Practitioners approximate Ousterhout depth as implementation size vs interface size (e.g. LOC ≫ interface description; few methods/params).[^wondelai-deep] Size alone is not depth — pair any size ratio with **API width** and **leakage**. Use **body tokens** for implementation mass, not LOC or statements (§4.2).
 
 ### 3.5 What this repo already approximates
 
@@ -159,32 +161,28 @@ Ousterhout’s “module” in §2 is conceptual (any interface+implementation u
 
 #### (1) Module Depth Index (MDI)
 
-
+$$
 \mathrm{MDI}(m) = \frac{F_{\mathrm{impl}}(m)}{1 + C_{\mathrm{iface}}(m)}
+$$
 
+| Symbol | Proxy |
+| --- | --- |
+| $C_{\mathrm{iface}}$ | $\sum_{\text{public } f} (1 + n_{\mathrm{params}}(f) + \mathbf{1}_{\mathrm{kwonly}})$ plus weight for public classes’ public methods; optional $+\gamma \cdot H_{\mathrm{public}}$ (header tokens) |
+| $F_{\mathrm{impl}}$ | Body **tokens** behind public entrypoints (docstring-stripped `body_tokens`), helpers counted once. **Not** statement counts — compound packing games them. **Not** $\sum S(f)$ (`S` is reuse amortization). Report $\sum \max(S,0)$ on public symbols as a separate reuse check. |
 
-Suggested proxies (prefer structural over raw LOC):
+**Interpretation.** High MDI ≈ deep. Low MDI + large PIW ≈ shallow / classitis. Low MDI + tiny $F_{\mathrm{impl}}$ + PIW≈0 ≈ leaf script — label by role, don’t demand library depth.
 
+**Anti-Goodhart.** Don’t hide needed public APIs to raise MDI (pair with import Ca). Don’t pad dead private code (pair with reachability later).
 
-| Symbol             | Proxy                                                                                                                                                                                                                                                                                                                                            |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| C_{\mathrm{iface}} | \sum_{\text{public } f} (1 + n_{\mathrm{params}}(f) + \mathbb{1}*{\mathrm{kwonly}}) plus weight for public classes’ public methods; optional +\gamma \cdot H*{\mathrm{public}} (header tokens)                                                                                                                                                   |
-| F_{\mathrm{impl}}  | **Primary:** body tokens (or statements) reachable behind public entrypoints, counting internal helpers once. **Not** \sum S(f): `S` is reuse amortization, not hidden functionality — a deep seldom-called API can have low `S`, a thin hot wrapper high `S`. Report \sum \max(S,0) on public symbols as a **separate** reuse check beside MDI. |
-
-
-**Interpretation.** High MDI ≈ deep. Low MDI with large PIW ≈ shallow / classitis. Low MDI with tiny F_{\mathrm{impl}} and PIW≈0 is typically a leaf script — label by role, don’t demand library depth.
-
-**Anti-Goodhart.** Do not maximize MDI by deleting needed public APIs (pair with import Ca). Do not inflate F_{\mathrm{impl}} with dead code (pair with coverage / call reachability later).
-
-MDI asks “does this *file’s public surface* buy enough hidden work?”; ETSPA/`S` asks “was this extract paid?” at callable scale.
+MDI asks whether this file’s public surface buys enough hidden work; ETSPA/`S` asks whether an extract was paid.
 
 #### (2) Public Interface Width (PIW)
 
+$$
+\mathrm{PIW}(m) = N_{\mathrm{public\ exports}} + \alpha \cdot \overline{n_{\mathrm{params}}}_{\mathrm{public}} + \beta \cdot N_{\mathrm{public\ types}}
+$$
 
-\mathrm{PIW}(m) = N_{\mathrm{public\ exports}} + \alpha \cdot \overline{n_{\mathrm{params}}}*{\mathrm{public}} + \beta \cdot N*{\mathrm{public\ types}}
-
-
-(Coefficients \alpha,\beta — see open questions.)
+(Coefficients $\alpha$, $\beta$ — see open questions.)
 
 **Interpretation.** Rising PIW without rising import Ca (or corpus Σ PIW exploding via file splits) is classitis / kitchen-sink. Ousterhout: few methods, few args, one-sentence description.[^wondelai-deep]
 
@@ -192,8 +190,9 @@ MDI asks “does this *file’s public surface* buy enough hidden work?”; ETSP
 
 Fraction of public callables whose body is dominated by a single call (or thin wrapper) to another module/class with **high signature similarity** (same arity / overlapping param names / near-identical header tokens).
 
-
-\mathrm{PTR}(m) = \frac{\lvert  f \in \mathrm{Pub}(m) : \mathrm{passthrough}(f) \rvert}{\lvert \mathrm{Pub}(m)\rvert}
+$$
+\mathrm{PTR}(m) = \frac{\lvert \{ f \in \mathrm{Pub}(m) : \mathrm{passthrough}(f) \} \rvert}{\lvert \mathrm{Pub}(m)\rvert}
+$$
 
 
 **Interpretation.** High PTR = shallow layer / decorator theater / “different layer, same abstraction.”[^ouster-modular][^ndepend-layered]
@@ -209,8 +208,8 @@ Per module (and package). **P1 Ca/Ce are import-graph counts** (distinct modules
 | -------------------------- | --------------------------------- | ----------------------------------------------- |
 | **Ca**                     | Distinct importers of this module | High for deep libraries                         |
 | **Ce**                     | Distinct modules this one imports | Lower at stable cores                           |
-| **I**                      | Ce/(Ca+Ce)                        | Cores → low I; apps → high I                    |
-| **Hub risk**               | Ca \times Ce (import)             | Don’t grow hubs without split                   |
+| **I**                      | $Ce/(Ca+Ce)$                      | Cores → low I; apps → high I                    |
+| **Hub risk**               | $Ca \times Ce$ (import)           | Don’t grow hubs without split                   |
 | **Call fan-in (optional)** | External calls to public symbols  | Confirms Ca when imports undercount dynamic use |
 
 
@@ -232,7 +231,7 @@ Static proxies (none replace reading the API; together they catch cliffs). **Red
 | **Coupling traps**       | Public functions that *require* prior calls to sibling setup APIs (detect via undocumented temporal coupling is hard; proxy: module-level mandatory init / ambient globals read on every public entry)                                                                     | Coupling           |
 
 
-(K — see open questions.)
+($K$ — see open questions.)
 
 **IC score (optional composite):** penalize high coarse-only fraction, high retention-only customization, high flow inversion; reward convenience + primitive exports in the same package *without* high PTR.
 
@@ -242,8 +241,8 @@ Static proxies (none replace reading the API; together they catch cliffs). **Red
 | Metric                                        | Why defer / demote                                             |
 | --------------------------------------------- | -------------------------------------------------------------- |
 | Maintainability Index / average CC per module | Size-dominated; hides shallow wide APIs[^van-deursen]          |
-| Raw module LOC                                | Ousterhout rejects size-as-depth; agents game with splits      |
-| Abstractness A alone                          | Python Protocols/ABCs undercount; easy to fake with empty ABCs |
+| Raw LOC / statement counts as volume          | Size≠depth; splits and compound packing game them — use body tokens for $F_{\mathrm{impl}}$ |
+| Abstractness $A$ alone                        | Python Protocols/ABCs undercount; easy to fake with empty ABCs |
 | “Number of classes”                           | Incentivizes classitis (anti-Ousterhout)                       |
 | Single “reusability %”                        | Unfalsifiable; Goodhart magnet                                 |
 
@@ -285,7 +284,7 @@ Measure **whether the common path stays narrow**, not whether advanced APIs exis
 
 | Priority | Add                                                                                                                                                            | Role                         |
 | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| **P1**   | PIW, MDI (primary F_{\mathrm{impl}} = body tokens / statements behind public entrypoints; `header_tokens`/`params` in C_{\mathrm{iface}}), module import Ca/Ce | Depth + responsibility board |
+| **P1**   | PIW, MDI ($F_{\mathrm{impl}}$ = body tokens behind public entrypoints; `header_tokens`/`params` in $C_{\mathrm{iface}}$), module import Ca/Ce | Depth + responsibility board |
 | **P1**   | PTR (pass-through / signature-echo)                                                                                                                            | Blocks fake layering         |
 | **P1**   | Corpus Σ PIW + count of low-MDI modules (informational / soft)                                                                                                 | Anti file-split gaming       |
 | **P2**   | Package rollups of the above + Martin I; hub risk; optional call fan-in                                                                                        | Architecture                 |
@@ -305,7 +304,7 @@ Mirror existing philosophy (complementary board, delta-first):
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Hard (delta)**  | New import cycles; PTR↑ on touched modules with import Ca≥1; PIW↑ without Ca↑ (and without corpus Σ PIW explanation via intentional API growth) |
 | **Soft**          | MDI↓ on high-Ca modules; Ce↑ on low-I packages; coarse-only fraction↑; rising low-MDI module count                                              |
-| **Informational** | Full IC dashboard; Martin D; hub list; public \sum S reuse check                                                                                |
+| **Informational** | Full IC dashboard; Martin D; hub list; public $\sum S$ reuse check                                                                              |
 
 
 Avoid a single “maximize MDI” objective — agents will hide exports or bloat private code.
@@ -348,6 +347,7 @@ Existing target: **high-fan-in simple cores + expressive leaves** (`[anti-spaghe
 4. **Static blindness** — informal interface (ordering, performance, errors) won’t appear in AST; comments/docs are weak proxies. Keep IC as **hotspot hints**, not sole truth.
 5. **Conflating Muratori “layer” with n-tier layers** — document vocabulary in UI strings.
 6. **Goodhart on abstractness** — empty Protocol proliferation to improve Martin A/D.
+7. **Statement-count volume** — don’t drive $F_{\mathrm{impl}}$/MDI with `statements`; compound packing cuts stmt count without cutting logic. Use body tokens; leave nest / cognitive / `v_poly` as the complexity board.
 
 ---
 
@@ -357,11 +357,11 @@ Existing target: **high-fan-in simple cores + expressive leaves** (`[anti-spaghe
 
 
 
-### OQ-1: What defaults should \alpha, \beta, \gamma, and K take?
+### OQ-1: What defaults should $\alpha$, $\beta$, $\gamma$, and $K$ take?
 
 Possible answers:
 
-- Start with \alpha=\beta=1, omit \gamma until header-token noise is measured; K=3 (Muratori’s “2–4 finer ops” midpoint).
+- Start with $\alpha=\beta=1$, omit $\gamma$ until header-token noise is measured; $K=3$ (Muratori’s “2–4 finer ops” midpoint).
 - Fit coefficients on a dogfood corpus so PIW ranks known kitchen-sink modules above known deep cores, then freeze.
 - Keep PIW as unweighted export count only in P1; add weighted terms only after false-positive review.
 

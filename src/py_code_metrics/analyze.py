@@ -32,6 +32,10 @@ from py_code_metrics.metrics.etspa import (
 )
 from py_code_metrics.metrics.expression import analyze_expression
 from py_code_metrics.metrics.imports import ImportGraph, build_import_graph
+from py_code_metrics.metrics.module_depth import (
+    aggregate_module_depth_from_reports,
+    compute_module_depth,
+)
 from py_code_metrics.metrics.v_poly import build_override_index, v_poly_for_callable
 from py_code_metrics.model import (
     DEFAULT_THRESHOLDS,
@@ -120,7 +124,14 @@ def analyze_path(root: Path, *, thresholds: Thresholds | None = None) -> Metrics
     }
     modules_out = [
         _module_report(
-            root, index, import_graph, callable_metrics, dispatcher_classes, mod_name, thresholds
+            root,
+            index,
+            import_graph,
+            call_graph,
+            callable_metrics,
+            dispatcher_classes,
+            mod_name,
+            thresholds,
         )
         for mod_name in sorted(index.modules)
     ]
@@ -252,6 +263,7 @@ def _module_report(
     root: Path,
     index: SymbolIndex,
     import_graph: ImportGraph,
+    call_graph: CallGraph,
     callable_metrics: dict[str, CallableMetrics],
     dispatcher_classes: set[str],
     mod_name: str,
@@ -298,12 +310,20 @@ def _module_report(
             )
         )
     all_callables = functions + [m for c in classes_out for m in c.methods]
+    depth = compute_module_depth(
+        mod_name,
+        index=index,
+        callable_metrics=callable_metrics,
+        call_graph=call_graph,
+        import_graph=import_graph,
+    )
     return ModuleReport(
         path=rel_path,
         name=mod_name,
         metrics=_rollup(all_callables, class_count=len(classes_out), thresholds=thresholds),
         imports=sorted(import_graph.edges.get(mod_name, ())),
         scc_id=import_graph.scc_of.get(mod_name),
+        depth=depth,
         functions=functions,
         classes=classes_out,
     )
@@ -359,6 +379,9 @@ def _overall(
             edge_count=import_graph.edge_count,
             cycle_count=len(import_graph.cycles),
             cycles=import_graph.cycles,
+        ),
+        module_depth=aggregate_module_depth_from_reports(
+            [(m.path, m.name, m.depth) for m in modules]
         ),
     )
     if not all_c:

@@ -19,6 +19,7 @@ only restate what shipped have drifted off-purpose (see skill
 | 3 | `5ee2701` (dashboard hardening) | `/tmp/pcm-round3-before.json` → `/tmp/pcm-round3-after.json` | Implements Round 2 product feedback |
 | 4 | P1 SUT + coverage ingest | `/tmp/pcm-p1-before.json` → `/tmp/pcm-p1-after.json` | `test_sut` / `test_coverage` / `--delta`; gate PASS |
 | 7 | post-LTR inline (`compare` merge) | `/tmp/pcm-before-refactor.json` → `/tmp/pcm-after-ltr-inline.json` | Length-budget dust hunt after statements gate removal |
+| 11 | module-depth P1 | `/tmp/pcm-before.json` → `/tmp/pcm-after.json` | MDI/PIW/PTR/Ca·Ce; import-prefix fix; gate PASS |
 
 ### Feedback tracker (Round 2 → status)
 
@@ -497,4 +498,52 @@ Removing the statements threshold correctly removed a fragmentation incentive, b
 - **Metrics-caused volume:** measurement added no refactor work; the requested change was deletion, and the gate confirmed it introduced no structural debt.
 - **Mislead / noise:** `helpers_cores.sum_S` fell 2612→1669 because removing the dead flat-parser path removed counted code. Treating that aggregate as a monotonic goal would discourage useful deletion; the complementary gate correctly did not fail.
 - **Product change?** None. Keep `sum_S` diagnostic rather than a deletion-sensitive hard gate.
+
+---
+
+## Round 11 — module-depth P1 (2026-07-19)
+
+**Intent:** Ship research P1 module board (MDI, PIW, PTR, import Ca/Ce) and dogfood it on `src/py_code_metrics`.
+**Snapshots:** `/tmp/pcm-before.json` → `/tmp/pcm-after.json`
+**Gate:** PASS (`n_unpaid_hotspots` 10→10, `max_v_poly` 19→19, `n_dou_sites_on_delta` 6→6)
+
+### Board (evidence)
+
+| Metric | Before | After | Δ |
+| --- | ---: | ---: | ---: |
+| n_unpaid_hotspots | 10 | 10 | 0 |
+| max_v_poly | 19 | 19 | 0 |
+| helpers_cores.sum_S | 1663 | 2187 | +524 (new module_depth helpers) |
+| n_dou_sites_on_delta | 6 | 6 | 0 |
+| sum_piw (new) | — | 247.7 | corpus public surface |
+| n_low_mdi (new) | — | 1 | `report.py` below threshold 10 |
+| mean_ptr (new) | — | 0.046 | low pass-through overall |
+
+**Self-analysis highlights (module-board):**
+
+| Module | Ca | PIW | MDI | Signal |
+| --- | ---: | ---: | ---: | --- |
+| `model.py` | 13 | 40 | 10.8 | High-Ca + high-PIW schema hub (popular surface, not deep) |
+| `resolve.py` | 10 | 10.5 | 129.6 | High-Ca hub with real depth |
+| `report.py` | 1 | 3.5 | 3.7 | Sole low-MDI library module; PTR=0.5 |
+| `analyze.py` | 1 | 3.0 | 425 | Deep orchestration leaf (high Ce hub) |
+
+### Metrics-caused moves
+
+- **Kept because gate failed then flattened:** first draft left `_public_surface` / `_implementation_tokens` as unpaid cognitive cliffs (12 hotspots); extracted `_counts_as_public_export`, `_module_fan_out`, `_reachable_qnames` until unpaid hotspot set returned to 10.
+- **Kept because DOU-on-delta rose:** replaced `hubs: list[dict[str, Any]]` with `ModuleHubEntry`; left `ModuleBoardView.to_dict` untyped to avoid a 7th ceremonial view-bag DOU site.
+- **Caused by the new board itself:** first `module-board` read showed Ca≈0 / empty hubs — metrics made the import-prefix collapse (`py_code_metrics.model` → package `__init__`) obvious; fixed `_corpus_module` to prefer `prefix+remainder` both in corpus. Without Ca/Ce on the board, that bug stays invisible behind `edge_count` alone.
+- **Rejected:** maximizing MDI by shrinking `model.py` public dataclasses — PIW is the schema; pair with Ca, don't hide exports.
+- **Left alone:** `model.py` high PIW is intentional report schema, not classitis to “fix” in this round.
+
+### Metrics feedback
+
+- **Guided well:** complementary unpaid-hotspot + DOU-delta gates forced paid structure in the new module; module board immediately surfaced a real graph bug and ranked `model.py` vs `resolve.py` the way the research predicted (popular wide vs deep hub).
+- **Mislead / noise:** `helpers_cores.sum_S` rose because we added code — not a quality win by itself. `n_low_mdi=1` on `report.py` is a soft hint, not a split mandate. LOW_MDI_THRESHOLD=10 is a starting freeze (OQ-1).
+- **Product change?** P1 shipped. Soft/hard *delta* gates for PTR↑ / PIW↑ without Ca↑ still deferred (research §6.2). Consider documenting that absolute-import corpora need the prefix-strip rule (now default). P2: package rollups + IC submetrics.
+
+### Verdict
+
+Callable gates alone would have accepted a shallow module_depth draft (and never noticed Ca collapse). The complementary suite steered flatten/dataclass work and the new module axis paid for itself on first dogfood by exposing an import-resolution bug that made Martin-style Ca/Ce useless. Temptation to “fix” `model.py` PIW was correctly refused — the board’s Ca×PIW pairing is the point, not minimize-PIW.
+
 

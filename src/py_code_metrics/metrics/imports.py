@@ -13,10 +13,26 @@ class ImportGraph:
     edges: dict[str, set[str]] = field(default_factory=dict)
     scc_of: dict[str, int] = field(default_factory=dict)
     cycles: list[list[str]] = field(default_factory=list)
+    _importers: dict[str, set[str]] = field(default_factory=dict, repr=False)
 
     @property
     def edge_count(self) -> int:
         return sum(len(targets) for targets in self.edges.values())
+
+    def efferent(self, mod: str) -> int:
+        """Ce — distinct modules this one imports."""
+        return len(self.edges.get(mod, ()))
+
+    def afferent(self, mod: str) -> int:
+        """Ca — distinct modules that import this one."""
+        return len(self._importers.get(mod, ()))
+
+    def rebuild_importers(self) -> None:
+        importers: dict[str, set[str]] = {m: set() for m in self.edges}
+        for src, targets in self.edges.items():
+            for tgt in targets:
+                importers.setdefault(tgt, set()).add(src)
+        self._importers = importers
 
 
 def extract_import_names(tree: ast.AST) -> list[str]:
@@ -57,9 +73,22 @@ def resolve_relative_import(current_module: str, imported: str) -> str | None:
 
 
 def _corpus_module(target: str, module_names: set[str]) -> str | None:
+    """Map an import target to a corpus module name.
+
+    Prefer exact / longest submodule matches. When analyzing a package root
+    (e.g. ``src/py_code_metrics``), absolute imports like ``py_code_metrics.model``
+    must resolve to ``model``, not collapse onto the package ``__init__``.
+    """
     if target in module_names:
         return target
     parts = target.split(".")
+    # Strip corpus package prefixes: prefix + remainder both in corpus → remainder.
+    for i in range(1, len(parts)):
+        prefix = ".".join(parts[:i])
+        remainder = ".".join(parts[i:])
+        if prefix in module_names and remainder in module_names:
+            return remainder
+    # Longest prefix still in the corpus (submodule or package).
     for i in range(len(parts), 0, -1):
         cand = ".".join(parts[:i])
         if cand in module_names:
@@ -95,6 +124,7 @@ def build_import_graph(
         elif len(component) == 1 and component[0] in graph.edges.get(component[0], set()):
             cycles.append([component[0]])
     graph.cycles = cycles
+    graph.rebuild_importers()
     return graph
 
 

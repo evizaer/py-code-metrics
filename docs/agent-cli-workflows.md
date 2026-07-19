@@ -23,9 +23,10 @@ The CLI uses explicit subcommands. `analyze <path>` emits the full structural JS
 
 | Command | Purpose | Default payload |
 | --- | --- | --- |
-| `board <path>` | Complementary rollups only | `complexity`, `etspa.helpers_cores`, `expression.leaves`, `dou`, `roles`, import `cycle_count` |
+| `board <path>` | Complementary rollups only | `complexity`, `etspa.helpers_cores`, `expression.leaves`, `dou`, `roles`, import `cycle_count`, `module_depth` (Σ PIW / low-MDI / means) |
 | `hotspots <path>` | Ranked unpaid debt | Hotspot list + counts; no per-module trees |
 | `dou <path>` | Ranked dict-overuse sites | `n_dou_sites`, impact-ranked `dou_hotspots[]` |
+| `module-board <path>` | Module depth / reuse board | Per-module MDI, PIW, PTR, Ca/Ce; corpus Σ PIW / `n_low_mdi`; hubs |
 | `symbol <path> <qname>` | Single callable (or class) | That symbol’s metrics + light neighbors (callers/callees counts or names) |
 | `diff <before> <after>` | Gate + board delta | Text summary for humans; JSON mode for agents; exit `1` on regression |
 | `snapshot <path> -o FILE` | Persist full report once | Write full JSON; subsequent views read `-f FILE` |
@@ -248,7 +249,8 @@ Compact, versioned envelopes (illustrative):
   "expression": {"leaves": {}},
   "dou": {"n_dou_sites": 0, "n_dou_callables": 0},
   "roles": {},
-  "imports": {"cycle_count": 0}
+  "imports": {"cycle_count": 0},
+  "module_depth": {"sum_piw": 0, "n_low_mdi": 0, "mean_mdi": 0, "mean_ptr": 0}
 }
 ```
 
@@ -272,6 +274,23 @@ Compact, versioned envelopes (illustrative):
   "n_dou_sites": 0,
   "n_dou_callables": 0,
   "dou_hotspots": []
+}
+```
+
+**`module-board`**
+
+```json
+{
+  "version": 2,
+  "view": "module-board",
+  "sum_piw": 0,
+  "n_low_mdi": 0,
+  "low_mdi_threshold": 10,
+  "mean_mdi": 0,
+  "mean_piw": 0,
+  "mean_ptr": 0,
+  "modules": [],
+  "hubs": []
 }
 ```
 

@@ -184,6 +184,39 @@ class ModuleRollup(MappingMixin):
     roles: RoleCounts = field(default_factory=RoleCounts)
 
 
+ModuleDepthRole = Literal["library", "leaf_script"]
+
+
+@dataclass
+class ModuleDepthMetrics(MappingMixin):
+    """Module-native depth / reuse board (Ousterhout + Martin import shape + PTR)."""
+
+    mdi: float = 0.0
+    piw: float = 0.0
+    ptr: float = 0.0
+    ca: int = 0
+    ce: int = 0
+    instability: float = 0.0
+    hub_risk: int = 0
+    f_impl: int = 0
+    c_iface: float = 0.0
+    n_public_exports: int = 0
+    n_public_types: int = 0
+    sum_public_S: float = 0.0
+    role: ModuleDepthRole = "library"
+
+
+@dataclass
+class ModuleHubEntry(MappingMixin):
+    path: str = ""
+    name: str = ""
+    ca: int = 0
+    ce: int = 0
+    hub_risk: int = 0
+    mdi: float = 0.0
+    piw: float = 0.0
+
+
 @dataclass
 class ModuleReport(MappingMixin):
     path: str
@@ -191,6 +224,7 @@ class ModuleReport(MappingMixin):
     metrics: ModuleRollup = field(default_factory=ModuleRollup)
     imports: list[str] = field(default_factory=list, metadata={"nest": "imports"})
     scc_id: int | None = field(default=None, metadata={"nest": "imports"})
+    depth: ModuleDepthMetrics = field(default_factory=ModuleDepthMetrics)
     functions: list[CallableMetrics] = field(default_factory=list)
     classes: list[ClassMetrics] = field(default_factory=list)
 
@@ -276,6 +310,19 @@ class ImportsOverall(MappingMixin):
 
 
 @dataclass
+class ModuleDepthOverall(MappingMixin):
+    """Corpus module-depth soft signals (anti file-split gaming)."""
+
+    sum_piw: float = 0.0
+    n_low_mdi: int = 0
+    low_mdi_threshold: float = 10.0
+    mean_mdi: float = 0.0
+    mean_piw: float = 0.0
+    mean_ptr: float = 0.0
+    hubs: list[ModuleHubEntry] = field(default_factory=list)
+
+
+@dataclass
 class OverallReport(MappingMixin):
     totals: OverallTotals = field(default_factory=OverallTotals)
     complexity: ComplexityBoard = field(default_factory=ComplexityBoard)
@@ -286,6 +333,7 @@ class OverallReport(MappingMixin):
     dou_hotspots: list[DouHotspotEntry] = field(default_factory=list)
     roles: RoleCounts = field(default_factory=RoleCounts)
     imports: ImportsOverall = field(default_factory=ImportsOverall)
+    module_depth: ModuleDepthOverall = field(default_factory=ModuleDepthOverall)
 
 
 @dataclass

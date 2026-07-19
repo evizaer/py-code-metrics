@@ -111,6 +111,7 @@ The P0 suite below is the counterbalancing set from the research notes: gaming o
 | Metric | Meaning |
 | --- | --- |
 | Module rollups | `sum_S`, fractions with `S≤0` / `fan_in≤1`, max nesting/`v_poly`, over-threshold counts, role counts |
+| Module depth (`depth` / `overall.module_depth`) | MDI, PIW, PTR, import Ca/Ce/I/hub — deep vs shallow modules; corpus Σ PIW / low-MDI count |
 | `overall.hotspots` | Unpaid callables above soft complexity gates (`v_poly` / nesting / cognitive); paid high-`S` cores are excluded |
 | `overall.etspa.helpers_cores` | ETSPA board for helpers+cores only (excludes `dispatch_exempt` visitors) — prefer for fragmentation gates |
 | `overall.expression.leaves` | CAR / nesting / cognitive for `role=leaf` — prefer for orchestration quality |
@@ -170,4 +171,6 @@ uv run pyrefly check
 
 ## Deferred (later passes)
 
-TCC, CBO, ATFD, God Class, RFC′, Martin package metrics, Halstead/ABC, layer contracts, CI exit codes / SARIF (P3), exclude files, and `-m` symbol filters.
+TCC, CBO, ATFD, God Class, RFC′, Martin abstractness \(A\)/distance \(D\), Halstead/ABC, layer contracts, IC submetrics (P2), CI exit codes / SARIF (P3), exclude files, and `-m` symbol filters.
+
+Module-native **MDI / PIW / PTR / import Ca·Ce** and `module-board` are implemented (P1); see `[docs/module-metrics-research.md](docs/module-metrics-research.md)`.

@@ -27,6 +27,7 @@ from py_code_metrics.views import (
     dou_view,
     findings_view,
     hotspots_view,
+    module_board_view,
     symbol_view,
 )
 
@@ -63,11 +64,12 @@ def build_subcommand_parser() -> argparse.ArgumentParser:
         ("board", "Complementary rollups only"),
         ("hotspots", "Ranked unpaid hotspots"),
         ("dou", "Ranked dict-overuse (structured-mapping) sites"),
+        ("module-board", "Module depth / PIW / PTR / Ca·Ce board"),
         ("analyze", "Full hierarchical JSON report"),
     ):
         p = sub.add_parser(name, help=help_text)
         _add_report_source_args(p)
-        if name in {"hotspots", "dou"}:
+        if name in {"hotspots", "dou", "module-board"}:
             p.add_argument("--limit", type=int, default=None)
             _add_path_filter_args(p)
 
@@ -264,7 +266,7 @@ def _main_subcommand(argv: list[str]) -> int:
         return _cmd_tests(args)
     if command == "symbol":
         return _cmd_symbol(args)
-    if command in {"board", "hotspots", "dou", "analyze"}:
+    if command in {"board", "hotspots", "dou", "module-board", "analyze"}:
         return _cmd_structural_view(args, command)
     print(f"error: unknown command: {command}", file=sys.stderr)
     return 2
@@ -384,6 +386,13 @@ def _cmd_structural_view(args: argparse.Namespace, command: str) -> int:
     elif command == "dou":
         path_filter = _resolve_path_filter(args, report)
         view = dou_view(
+            report,
+            limit=getattr(args, "limit", None),
+            path_filter=path_filter,
+        )
+    elif command == "module-board":
+        path_filter = _resolve_path_filter(args, report)
+        view = module_board_view(
             report,
             limit=getattr(args, "limit", None),
             path_filter=path_filter,

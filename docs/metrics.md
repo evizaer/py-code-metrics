@@ -353,6 +353,27 @@ Assignments include `=`, annotated assigns with values, and augmented assigns. H
 
 **Counter-balances.** Local cleanup that secretly introduces cyclic packages. Method-only splits inside one file evade this—still need cohesion / NOM.
 
+### Module depth board (`overall.module_depth` / per-module `depth`)
+
+Module-native depth and reuse signals (not averages of callable CC). See `[module-metrics-research.md](module-metrics-research.md)`.
+
+| Field | Meaning |
+| --- | --- |
+| `mdi` | Module Depth Index: \(F_{\mathrm{impl}} / (1 + C_{\mathrm{iface}})\) — body tokens behind public entrypoints (helpers counted once) over formal interface cost |
+| `piw` | Public Interface Width: \(N_{\mathrm{exports}} + \overline{n_{\mathrm{params}}} + N_{\mathrm{public\ types}}\) (α=β=1) |
+| `ptr` | Pass-Through Rate: fraction of public callables that are thin signature-echo wrappers to another module/class |
+| `ca` / `ce` / `instability` / `hub_risk` | Import-graph afferent / efferent coupling, \(I = Ce/(Ca+Ce)\), hub risk \(Ca \times Ce\) |
+| `f_impl` / `c_iface` | Raw numerator / denominator inputs to MDI |
+| `sum_public_S` | \(\sum \max(S,0)\) on public symbols (reuse check; not used in MDI) |
+| `role` | `library` vs `leaf_script` (tiny PIW — don't demand library depth) |
+| `sum_piw` / `n_low_mdi` (overall) | Corpus public surface and count of library modules with MDI below soft threshold (anti file-split gaming) |
+
+**Why include them.** Function gates can green while a module stays a wide shallow API, a pass-through layer, or a popular hub. Ousterhout depth and Muratori “false tier” detection need module-scale signals.
+
+**Counter-balances.** Raising MDI by hiding needed exports (pair with Ca). Padding private dead code (reachability later). Splitting files to lower per-file PIW (watch `sum_piw` / `n_low_mdi`). Inserting pass-through packages to “add layers” (PTR↑).
+
+CLI: `py-code-metrics module-board`; corpus slice also on `board` under `module_depth`.
+
 ### Role histogram (`overall.roles` / module `roles`)
 
 Counts of `core` / `leaf` / `helper`. Useful for seeing whether a change grew unpaid helpers vs reusable cores.

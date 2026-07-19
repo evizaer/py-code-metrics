@@ -73,6 +73,7 @@ def test_board_view_shape():
     assert "leaves" in view["expression"]
     assert view["dou"]["n_dou_sites"] == 2
     assert view["imports"]["cycle_count"] == 0
+    assert "module_depth" in view
     assert "modules" not in view
 
 
