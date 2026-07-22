@@ -41,7 +41,6 @@ def _structural_report() -> MetricsReport:
                         "role": "helper",
                         "unpaid": True,
                         "reduction_like": False,
-                        "dispatch_exempt": False,
                     }
                 ],
             },

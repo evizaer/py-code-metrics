@@ -107,7 +107,6 @@ class CallableMetrics(MappingMixin):
     call_count: int = 0
     local_stores: int = 0
     comprehension_count: int = 0
-    dispatch_exempt: bool = False
     unpaid: bool = False
     reduction_like: bool = False
     n_dou_sites: int = 0
@@ -157,8 +156,6 @@ class ClassMetrics(MappingMixin):
     lcom4: int = field(default=0, metadata={"nest": "metrics"})
     wmc: int = field(default=0, metadata={"nest": "metrics"})
     nom: int = field(default=0, metadata={"nest": "metrics"})
-    dispatch_class: bool = field(default=False, metadata={"nest": "metrics"})
-    lcom4_gate_exempt: bool = field(default=False, metadata={"nest": "metrics"})
     methods: list[CallableMetrics] = field(default_factory=list)
 
 
@@ -298,7 +295,6 @@ class HotspotEntry(MappingMixin):
     role: Role = "helper"
     unpaid: bool = True
     reduction_like: bool = False
-    dispatch_exempt: bool = False
     path: str | None = field(default=None, metadata=_OMIT_NONE)
 
 

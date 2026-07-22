@@ -1,4 +1,4 @@
-"""Unit tests for dashboard predicates (hotspots, dispatch, reduction-like)."""
+"""Unit tests for dashboard predicates (hotspots, reduction-like)."""
 
 from __future__ import annotations
 
@@ -35,20 +35,6 @@ def test_unpaid_high_complexity_is_hotspot():
     c.unpaid = is_unpaid(c)
     assert c.unpaid
     assert is_hotspot(c, DEFAULT_THRESHOLDS)
-
-
-def test_dispatch_exempt_not_unpaid_or_hotspot():
-    c = _cm(
-        v_poly=5,
-        cognitive=8,
-        max_nesting=2,
-        fan_in_ext=0,
-        S=-20.0,
-        dispatch_exempt=True,
-    )
-    c.unpaid = is_unpaid(c)
-    assert not c.unpaid
-    assert not is_hotspot(c, DEFAULT_THRESHOLDS)
 
 
 def test_reduction_like_v_poly_alone_not_hotspot():
@@ -103,17 +89,15 @@ def test_dashboard_fixture_e2e():
         for fn in mod["functions"]:
             by_qname[fn["qualified_name"]] = fn
         for cls in mod["classes"]:
-            assert "dispatch_class" in cls["metrics"]
+            metrics = cls.get("metrics", {})
+            assert "dispatch_class" not in metrics
+            assert "lcom4_gate_exempt" not in metrics
             for meth in cls["methods"]:
                 by_qname[meth["qualified_name"]] = meth
 
     visitor = by_qname["visitors.Walk.visit_Name"]
-    assert visitor["dispatch_exempt"] is True
-    assert visitor["unpaid"] is False
-
-    walk_cls = next(c for m in d["modules"] for c in m["classes"] if c["name"] == "Walk")
-    assert walk_cls["metrics"]["dispatch_class"] is True
-    assert walk_cls["metrics"]["lcom4_gate_exempt"] is True
+    assert "dispatch_exempt" not in visitor
+    assert visitor["unpaid"] is True
 
     paid = by_qname["mod.shared_branchy"]
     assert paid["fan_in_ext"] >= 2

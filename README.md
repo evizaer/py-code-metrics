@@ -94,8 +94,7 @@ The P0 suite below is the counterbalancing set from the research notes: gaming o
 | `lmd` | Local mutation density: local/param stores ÷ body tokens |
 | `cvr` | Combinator vocabulary hit rate (default allowlist + comprehensions) |
 | `role` | `core` (high reuse), `leaf` (entrypoint / expressive), or `helper` |
-| `unpaid` | `true` when `fan_in_ext≤1` or `S≤0`, except `dispatch_exempt` visitors |
-| `dispatch_exempt` | `visit_*` / `generic_visit` on an `ast.NodeVisitor` subclass |
+| `unpaid` | `true` when `fan_in_ext≤1` or `S≤0` |
 | `reduction_like` | High `v_poly` with shallow nesting — aggregation-shaped, not deep spaghetti |
 
 ### Class
@@ -113,14 +112,14 @@ The P0 suite below is the counterbalancing set from the research notes: gaming o
 | Module rollups | `sum_S`, fractions with `S≤0` / `fan_in≤1`, max nesting/`v_poly`, over-threshold counts, role counts |
 | Module depth (`depth` / `overall.module_depth`) | MDI, PIW, PTR, import Ca/Ce/I/hub — deep vs shallow modules; corpus Σ PIW / low-MDI count |
 | `overall.hotspots` | Unpaid callables above soft complexity gates (`v_poly` / nesting / cognitive); paid high-`S` cores are excluded |
-| `overall.etspa.helpers_cores` | ETSPA board for helpers+cores only (excludes `dispatch_exempt` visitors) — prefer for fragmentation gates |
+| `overall.etspa.helpers_cores` | ETSPA board for helpers+cores only — prefer for fragmentation gates |
 | `overall.expression.leaves` | CAR / nesting / cognitive for `role=leaf` — prefer for orchestration quality |
 | Over-threshold counts | `n_v_poly_gt_15`, `n_nesting_gt_3`, plus unpaid variants — progress when corpus max is stuck |
 | Import graph | Corpus-local import edges and Tarjan SCCs (`cycles` when size > 1) |
 
-Per-callable flags: `unpaid`, `dispatch_exempt` (`visit_*` on `ast.NodeVisitor`), `reduction_like` (flat aggregation vs deep spaghetti). Class metrics add `dispatch_class` / `lcom4_gate_exempt` so visitor LCOM4 is not treated as a split mandate.
+Per-callable flags: `unpaid`, `reduction_like` (flat aggregation vs deep spaghetti). Visitor `visit_*` methods often look unpaid / high-LCOM4 by design—stop-annotate rather than fragment them.
 
-Suggested thresholds (emitted under `thresholds`, not enforced as exit codes yet): nesting ≤ 3, params ≤ 5, `v_poly` ≤ 10–15, cognitive ≈ 15, LCOM4 ≤ 1 (skip LCOM4 gates on dispatch classes). There is **no** per-function statements/LOC threshold—long flat functions are fine when complexity and unpaid/hotspot signals are healthy.
+Suggested thresholds (emitted under `thresholds`, not enforced as exit codes yet): nesting ≤ 3, params ≤ 5, `v_poly` ≤ 10–15, cognitive ≈ 15, LCOM4 ≤ 1. There is **no** per-function statements/LOC threshold—long flat functions are fine when complexity and unpaid/hotspot signals are healthy.
 
 ## Self-analysis gate
 

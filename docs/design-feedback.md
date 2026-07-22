@@ -84,7 +84,7 @@ Any of:
 
 Known patterns (extend per project via dogfood “false debt” tables):
 
-- `dispatch_exempt` / visitor `visit_*`
+- Visitor `visit_*` / `generic_visit` (polymorphic dispatch; F≈0 and high LCOM4 by design)
 - Graph algorithms with nested recursion helpers
 - `reduction_like` aggregators
 - Intentional F=1 pipeline steps under a high-CAR leaf

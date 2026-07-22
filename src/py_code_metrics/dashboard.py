@@ -1,4 +1,4 @@
-"""Dashboard predicates: unpaid debt, hotspots, dispatch exemption, reduction-like."""
+"""Dashboard predicates: unpaid debt, hotspots, reduction-like."""
 
 from __future__ import annotations
 
@@ -12,53 +12,10 @@ from py_code_metrics.model import (
     LeavesExpressionBoard,
     Thresholds,
 )
-from py_code_metrics.resolve import ClassInfo, ModuleInfo, SymbolIndex
-
-DISPATCH_BASE_SUFFIXES = frozenset({"NodeVisitor", "NodeTransformer"})
-DISPATCH_METHOD_PREFIX = "visit_"
-DISPATCH_METHOD_NAMES = frozenset({"generic_visit"})
-
-
-def bases_mention_dispatcher(ci: ClassInfo, mi: ModuleInfo) -> bool:
-    """True if a base name resolves to ast.NodeVisitor / NodeTransformer."""
-    for raw in ci.bases_raw:
-        short = raw.split(".")[-1]
-        if short in DISPATCH_BASE_SUFFIXES:
-            return True
-        if raw in mi.local_names:
-            target = mi.local_names[raw]
-            if target.split(".")[-1] in DISPATCH_BASE_SUFFIXES:
-                return True
-    return False
-
-
-def class_is_ast_dispatcher(index: SymbolIndex, class_qname: str) -> bool:
-    """Walk corpus ancestry; external NodeVisitor bases are seen via bases_raw."""
-    seen: set[str] = set()
-    stack = [class_qname]
-    while stack:
-        cur = stack.pop()
-        if cur in seen:
-            continue
-        seen.add(cur)
-        ci = index.classes.get(cur)
-        if ci is None:
-            continue
-        mi = index.modules[ci.module]
-        if bases_mention_dispatcher(ci, mi):
-            return True
-        stack.extend(ci.bases_resolved)
-    return False
-
-
-def is_dispatch_method_name(name: str) -> bool:
-    return name.startswith(DISPATCH_METHOD_PREFIX) or name in DISPATCH_METHOD_NAMES
 
 
 def is_unpaid(c: CallableMetrics) -> bool:
-    """Unpaid = low reuse or non-positive ETSPA; dispatch visitors are not debt."""
-    if c.dispatch_exempt:
-        return False
+    """Unpaid = low reuse or non-positive ETSPA."""
     return c.fan_in_ext <= 1 or c.S <= 0
 
 
@@ -78,7 +35,7 @@ def is_reduction_like(c: CallableMetrics) -> bool:
 
 def is_hotspot(c: CallableMetrics, thresholds: Thresholds) -> bool:
     """High complexity AND unpaid; reduction-like v_poly alone does not qualify."""
-    if c.dispatch_exempt or not is_unpaid(c):
+    if not is_unpaid(c):
         return False
     if c.max_nesting > thresholds.nesting_depth:
         return True
@@ -98,7 +55,6 @@ def hotspot_entry(c: CallableMetrics) -> HotspotEntry:
         role=c.role,
         unpaid=True,
         reduction_like=c.reduction_like,
-        dispatch_exempt=c.dispatch_exempt,
     )
 
 
@@ -148,7 +104,7 @@ def _frac(pred_count: int, n: int) -> float:
 
 
 def etspa_board(callables: list[CallableMetrics]) -> HelpersCoresEtspa:
-    """ETSPA summary for a callable subset (typically helpers+cores, non-exempt)."""
+    """ETSPA summary for a callable subset (typically helpers+cores)."""
     n = len(callables)
     if n == 0:
         return HelpersCoresEtspa()

@@ -152,11 +152,11 @@ S = (F - 1)\,B - H - F\cdot C
 
 **Why include them.** Complexity caps create pressure to shatter readable functions into dust. ETSPA asks whether the call graph *pays you back*. Module/overall **`sum_S`** and **`frac_S_le_0`** measure compression health of a scope.
 
-**Counter-balances.** Per-method CC / LOC / nesting wins from unpaid extracts. Leaves with low \(F\) may legitimately have negative \(S\)—judge those with **`car`** / role **`leaf`**, not as failed cores. Prefer **`overall.etspa.helpers_cores`** for fragmentation gates (excludes leaves and dispatch-exempt visitors).
+**Counter-balances.** Per-method CC / LOC / nesting wins from unpaid extracts. Leaves with low \(F\) may legitimately have negative \(S\)—judge those with **`car`** / role **`leaf`**, not as failed cores. Prefer **`overall.etspa.helpers_cores`** for fragmentation gates (excludes leaves).
 
 ### `unpaid`
 
-**What it means.** Boolean: `fan_in_ext ≤ 1` or `S ≤ 0`, except when **`dispatch_exempt`**. Marks abstractions that do not earn their keep as shared helpers.
+**What it means.** Boolean: `fan_in_ext ≤ 1` or `S ≤ 0`. Marks abstractions that do not earn their keep as shared helpers.
 
 **Why include it.** Turns ETSPA/fan-in into a hotspot predicate: complex *and* unpaid is debt; complex *and* paid (high \(S\)) may be a legitimate core.
 
@@ -228,14 +228,6 @@ Assignments include `=`, annotated assigns with values, and augmented assigns. H
 
 **Counter-balances.** Global averages that mix entrypoints with shared utilities (`frac_S_le_0` over everything is noisy—prefer `helpers_cores`).
 
-### `dispatch_exempt`
-
-**What it means.** `true` for `visit_*` / `generic_visit` on an `ast.NodeVisitor` / `NodeTransformer` subclass (including corpus ancestry to those bases).
-
-**Why include it.** Visitor dispatch is intentional fan-out; treating each `visit_X` as unpaid debt or an LCOM failure is a false positive.
-
-**Counter-balances.** Blind application of **`unpaid`**, fan-in, and LCOM4 gates to framework dispatch patterns.
-
 ### `reduction_like`
 
 **What it means.** High `v_poly` (≥ 8) with shallow nesting (≤ 1) and cognitive not much above branch count—flat aggregation / multi-way reduction, not deep spaghetti.
@@ -252,23 +244,17 @@ Assignments include `=`, annotated assigns with values, and augmented assigns. H
 
 **Counter-balances.** Unpaid fragmentation (do not split one bag into many F=1 dict builders); one-field wrappers that still hold `dict[str, Any]`; treating DOU as purity (PIF stays a separate axis).
 
-### `dispatch_class` / `lcom4_gate_exempt` (class-level)
-
-**What they mean.** Class is an AST dispatcher; LCOM4 should not mandate a split. Emitted on class metrics.
-
-**Why include them.** Same rationale as `dispatch_exempt`: visitor method graphs look “incohesive” by design.
-
 ---
 
 ## Class metrics
 
 ### `lcom4`
 
-**What it means.** Hitz–Montazeri lack of cohesion: number of connected components in the undirected graph of methods, where edges exist if two methods share an instance attribute or one calls the other on `self`. Ideal cohesive class: **1**. Soft gate: ≤ 1 (skip on dispatch-exempt classes).
+**What it means.** Hitz–Montazeri lack of cohesion: number of connected components in the undirected graph of methods, where edges exist if two methods share an instance attribute or one calls the other on `self`. Ideal cohesive class: **1**. Soft gate: ≤ 1.
 
 **Why include it.** Catches god classes and bags of unrelated responsibilities that per-method CC will miss.
 
-**Counter-balances.** Method-level complexity wins that leave the type incoherent. Weak against cohesive micro-method dust—pair with **NOM** / **WMC** / **S**.
+**Counter-balances.** Method-level complexity wins that leave the type incoherent. Weak against cohesive micro-method dust—pair with **NOM** / **WMC** / **S**. Visitor `visit_*` method graphs often look “incohesive” by design—do not split them solely to green LCOM4.
 
 ### `wmc`
 
@@ -310,7 +296,7 @@ Assignments include `=`, annotated assigns with values, and augmented assigns. H
 | `sum_S` | Total compression accounting |
 | `frac_S_le_0` | Share of callables with non-positive \(S\) |
 | `frac_fan_in_le_1` | Share with external fan-in ≤ 1 |
-| `helpers_cores` | Same stats on helpers+cores only (excludes `dispatch_exempt`) — **prefer for fragmentation gates** |
+| `helpers_cores` | Same stats on helpers+cores only — **prefer for fragmentation gates** |
 
 **Why include them.** Scope-level anti-fragmentation. Global fracs mix leaves; the note on the report says to prefer `helpers_cores`.
 

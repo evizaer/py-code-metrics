@@ -132,7 +132,7 @@ py-code-metrics diff /tmp/pcm-before.json /tmp/pcm-after.json --json
 
 ### Payload focus
 
-Each hotspot entry should already carry enough to decide without a second call when possible: `qualified_name`, `path`, complexity fields, `fan_in_ext`, `S`, `role`, `unpaid`, `reduction_like`, `dispatch_exempt`. `symbol` adds callers/callees only when planning an extract.
+Each hotspot entry should already carry enough to decide without a second call when possible: `qualified_name`, `path`, complexity fields, `fan_in_ext`, `S`, `role`, `unpaid`, `reduction_like`. `symbol` adds callers/callees only when planning an extract.
 
 ---
 

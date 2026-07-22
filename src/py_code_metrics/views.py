@@ -439,7 +439,6 @@ def _with_path(hotspot: HotspotEntry, paths: dict[str, str]) -> HotspotEntry:
             role=hotspot.role,
             unpaid=hotspot.unpaid,
             reduction_like=hotspot.reduction_like,
-            dispatch_exempt=hotspot.dispatch_exempt,
             path=paths[hotspot.qualified_name],
         )
     return hotspot

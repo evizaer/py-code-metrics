@@ -7,13 +7,11 @@ from pathlib import Path
 
 from py_code_metrics.dashboard import (
     aggregate_dou_impact,
-    class_is_ast_dispatcher,
     dou_hotspot_entry,
     dou_impact_sort_key,
     etspa_board,
     expression_board,
     hotspot_entry,
-    is_dispatch_method_name,
     is_hotspot,
     is_reduction_like,
     is_unpaid,
@@ -108,7 +106,6 @@ def analyze_path(root: Path, *, thresholds: Thresholds | None = None) -> Metrics
         {cq: ci.node for cq, ci in index.classes.items()},
         {cq: ci.bases_resolved for cq, ci in index.classes.items()},
     )
-    dispatcher_classes = {cq for cq in index.classes if class_is_ast_dispatcher(index, cq)}
     call_costs = _collect_call_costs(index, call_graph)
     callable_metrics = {
         qname: _score_callable(
@@ -116,7 +113,6 @@ def analyze_path(root: Path, *, thresholds: Thresholds | None = None) -> Metrics
             call_graph,
             override_sets,
             call_costs,
-            dispatcher_classes,
             qname,
             info,
         )
@@ -129,7 +125,6 @@ def analyze_path(root: Path, *, thresholds: Thresholds | None = None) -> Metrics
             import_graph,
             call_graph,
             callable_metrics,
-            dispatcher_classes,
             mod_name,
             thresholds,
         )
@@ -166,7 +161,6 @@ def _score_callable(
     call_graph: CallGraph,
     override_sets: dict[tuple[str, str], set[str]],
     call_costs: dict[str, list[int]],
-    dispatcher_classes: set[str],
     qname: str,
     info: CallableInfo,
 ) -> CallableMetrics:
@@ -204,11 +198,6 @@ def _score_callable(
         fan_in_ext=F_ext,
         call_count=expr.call_count,
         assign_count=expr.assign_count,
-    )
-    dispatch_exempt = bool(
-        info.class_qname
-        and info.class_qname in dispatcher_classes
-        and is_dispatch_method_name(info.name)
     )
     caller_modules = {
         index.callables[caller].module
@@ -250,7 +239,6 @@ def _score_callable(
         call_count=expr.call_count,
         local_stores=expr.local_stores,
         comprehension_count=expr.comprehension_count,
-        dispatch_exempt=dispatch_exempt,
         n_dou_sites=dou.n_sites,
         dou_sites=dou.sites,
     )
@@ -265,7 +253,6 @@ def _module_report(
     import_graph: ImportGraph,
     call_graph: CallGraph,
     callable_metrics: dict[str, CallableMetrics],
-    dispatcher_classes: set[str],
     mod_name: str,
     thresholds: Thresholds,
 ) -> ModuleReport:
@@ -295,7 +282,6 @@ def _module_report(
         ]
         method_ccs = {m.name: m.cyclomatic for m in method_cms}
         lcom4, nom, _ = compute_lcom4(ci.node)
-        is_dispatch = cq in dispatcher_classes
         classes_out.append(
             ClassMetrics(
                 name=ci.name,
@@ -304,8 +290,6 @@ def _module_report(
                 lcom4=lcom4,
                 wmc=compute_wmc(method_ccs) if method_ccs else 0,
                 nom=nom,
-                dispatch_class=is_dispatch,
-                lcom4_gate_exempt=is_dispatch,
                 methods=sorted(method_cms, key=lambda m: m.lineno),
             )
         )
@@ -466,7 +450,7 @@ def _callable_stats(callables: list[CallableMetrics], thresholds: Thresholds) ->
             n_unpaid_nest += 1
         if c.role == "leaf":
             leaves.append(c)
-        elif not c.dispatch_exempt:
+        else:
             helper_core.append(c)
         if is_hotspot(c, thresholds):
             hotspot_cms.append(c)

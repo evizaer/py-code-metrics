@@ -1,4 +1,4 @@
-"""AST visitor — dispatch_exempt methods should not count as unpaid debt."""
+"""AST visitor fixture — polymorphic dispatch with low fan-in."""
 
 from __future__ import annotations
 

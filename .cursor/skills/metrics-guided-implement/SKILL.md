@@ -221,7 +221,7 @@ Refactor candidates are symbols that are **complex and unpaid**:
 
 - Above soft gates (`v_poly` / nesting / cognitive), **and**
 - `unpaid` (`fan_in_ext≤1` or `S≤0`), **and**
-- not `dispatch_exempt`, not a healthy paid core
+- not a healthy paid core
 
 Do **not** chase raw high `v_poly` on paid helpers (F≥2, S≫0).
 Do **not** treat high `statements` / token counts as a reason to split when those soft gates are fine—length is context, not a hotspot driver.
@@ -231,7 +231,7 @@ Do **not** treat high `statements` / token counts as a reason to split when thos
 **Production**
 
 - Strategy / class-per-case to lower method CC while `v_poly` stays flat or rises
-- Split `visit_*` / fix visitor LCOM4 with fake coupling (`dispatch_exempt` / `lcom4_gate_exempt`)
+- Split `visit_*` / fix visitor LCOM4 with fake coupling (visitors are inherent dispatch—stop-annotate)
 - Maximize average ETSPA by deleting intentional leaf steps or visitors
 - Optimize `frac_fan_in≤1` or function count in isolation
 - Extract F=1 shards solely to relocate branches out of a parent
